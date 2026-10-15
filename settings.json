@@ -1,5 +1,5 @@
 {
-  "intervalMinutes": 45,
+  "intervalMinutes": 30,
   "activeHours": {
     "enabled": true,
     "start": "09:00",
@@ -7,6 +7,7 @@
   },
   "snoozeDurationMinutes": 5,
   "voiceMuted": false,
+  "startWithWindows": true,
   "reminderTypes": {
     "water": {
       "enabled": true,
@@ -25,6 +26,6 @@
     }
   },
   "lastTriggerTimestamp": 0,
-  "nextTriggerTimestamp": 1792046792720,
+  "nextTriggerTimestamp": 1792049430792,
   "lastReminderType": "water"
 }

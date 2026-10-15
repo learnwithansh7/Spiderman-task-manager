@@ -13,6 +13,7 @@
     "test:r2": "node scripts/dev.js --test-r2",
     "test:r3": "node scripts/dev.js --test-r3",
     "test:r4": "node scripts/dev.js --test-r4",
+    "test:r5": "node scripts/dev.js --test-r5",
     "start": "npm run build && electron dist/electron/main.js"
   },
   "dependencies": {

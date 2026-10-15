@@ -13,10 +13,53 @@ A Windows desktop reminder app where a 3D animated hero hanging upside down glid
 | **R2: Animation with Placeholder** | **DONE** | Full physics animation loop: thread growth, 4s ease-out descent, scale (0.8 to 1.0) and soft depth shadow, damped pendulum sway $A e^{-kt} \cos(\omega t)$ starting at 10°, and 1.5s ease-in climb exit. Tag: `r2-animation`. |
 | **R3: Note Card and Voice** | **DONE** | Spring-animated note card with **REMINDER** badge, customizable message (*"Time to drink water!"*), **Done** and **Snooze (5 min)** buttons, mute toggle, and spoken voice via Windows Speech Synthesis. Tag: `r3-note-and-voice`. |
 | **R4: Scheduler and Settings** | **DONE** | Heartbeat scheduler engine, active hours gating (09:00–18:00), snooze handling, sleep/wake survival via `powerMonitor`, rotating reminder types (`water`, `stretch`, `eyes`), and JSON persistence in `settings.json`. Tag: `r4-scheduler`. |
-| **R5: Tray & Settings Window** | Up Next | Dedicated React settings window and auto-start on boot. |
-| **R6: The Real 3D Character** | Planned | Transparent WebM video clip (`character.webm`) with PNG fallback. |
+| **R5: Tray & Settings Window** | **DONE** | Full tray context menu (status, multi-type preview, settings, login item checkbox, quit), dedicated React dark settings window, close-to-tray interception, and "Start with Windows" integration (`app.setLoginItemSettings`). Tag: `r5-tray-and-settings`. |
+| **R6: The Real 3D Character** | Up Next | Transparent WebM video clip (`character.webm`) with PNG fallback. |
 | **R7: Polish & Reliability** | Planned | Fullscreen app detection, multi-monitor support, and crash resilience. |
 | **R8: Installer & Release** | Planned | `electron-builder` Windows installer packaging. |
+
+---
+
+## Tray, Settings Window & Windows Startup (Milestone R5)
+
+- **Dedicated Settings Window (`src/settings/SettingsApp.tsx`)**:
+  - Independent, framed dark-themed window (`#0b1120`) built with React and Vite.
+  - **Quick Interval Presets**: Pill selector for `20m`, `30m`, `45m`, `60m`, plus custom numeric input.
+  - **Active Work Hours**: Toggle and time inputs (`09:00` to `18:00`) restricting notifications to work times.
+  - **Snooze & Voice**: Custom snooze duration (`3m`, `5m`, `10m`, `15m`), voice toggle, and interactive `🔊 Test Voice` button.
+  - **Reminder Customization**: Enable/disable toggles, custom messages, and instant live preview triggers for Water, Stretch, and Rest Eyes.
+  - **Start with Windows**: Toggle connected to native Windows login items via `app.setLoginItemSettings()`.
+  - **Close Interception**: Clicking the window's close button hides the window (`event.preventDefault(); window.hide()`) instead of destroying it, allowing instant re-open while keeping the app running silently in the tray.
+- **Enhanced Tray Context Menu**:
+  - Real-time status display: `Next: [Time] ([TYPE])`.
+  - Nested test reminder submenu (`💧 Water`, `🙆 Stretch`, `👀 Rest Eyes`).
+  - `Settings...` launcher (focuses existing instance if open).
+  - Quick toggle for `Start with Windows`.
+  - Clean `Quit SpiderReminder` action.
+
+---
+
+## How to Run Milestone R5
+
+### 1. Development Mode
+```bash
+npm run dev
+```
+- App launches in system tray.
+- Click tray icon or select **"Settings..."** to open the Settings panel.
+- Change reminder interval, configure active hours, or test speech voice.
+- Press **`Ctrl+Alt+Shift+R`** anytime to trigger an instant reminder test.
+
+### 2. Automated Test Verification
+```bash
+npm run test:r5
+```
+Runs the automated verification suite:
+1. Opens and renders the React Settings window.
+2. Captures screenshot: `docs/r5-settings-window.png`.
+3. Tests settings modification, JSON persistence, and login item settings.
+4. Verifies window close-to-hide interception without quitting.
+
 
 ---
 
@@ -108,6 +151,8 @@ npm run test:r3
 
 ## Verification Artifacts (`docs/`)
 
+- [`docs/r5-settings-window.png`](docs/r5-settings-window.png) — Dedicated React Settings panel with dark theme, interval presets, active hours, snooze/voice controls, and startup toggle.
+- [`docs/r4-scheduled-reminder.png`](docs/r4-scheduled-reminder.png) — Scheduled reminder note card and character captured during automated suite execution.
 - [`docs/r3-note-card.png`](docs/r3-note-card.png) — Note card with REMINDER badge, Done & Snooze buttons, mute toggle, and swaying character.
 - [`docs/r2-descent.png`](docs/r2-descent.png) — Character descending on thread with depth scale & soft shadow.
 - [`docs/r2-sway.png`](docs/r2-sway.png) — Damped pendulum sway at full scale (1.0).

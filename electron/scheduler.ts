@@ -62,6 +62,28 @@ export class ReminderScheduler {
     this.onTriggerCallback?.(type, config.message, config.voiceText);
   }
 
+  public getSettings(): AppSettings {
+    return this.settings;
+  }
+
+  public updateSettings(newSettings: AppSettings): void {
+    const intervalChanged = this.settings.intervalMinutes !== newSettings.intervalMinutes;
+    this.settings = { ...newSettings };
+    if (intervalChanged) {
+      this.scheduleNextRegularReminder();
+    } else {
+      saveSettings(this.settings);
+    }
+    console.log('[Scheduler] Settings updated in scheduler.');
+  }
+
+  public getNextReminderInfo(): { timeString: string; type: ReminderTypeKey } {
+    const timeString = this.settings.nextTriggerTimestamp > 0
+      ? new Date(this.settings.nextTriggerTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : 'Pending';
+    return { timeString, type: this.settings.lastReminderType };
+  }
+
   public setTestIntervalMinutes(minutes: number): void {
     this.settings.intervalMinutes = minutes;
     this.settings.nextTriggerTimestamp = Date.now() + minutes * 60 * 1000;

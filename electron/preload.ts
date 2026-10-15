@@ -37,4 +37,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('trigger-exit', sub);
     };
   },
+  invoke: (channel: string, data?: any) => {
+    return ipcRenderer.invoke(channel, data);
+  },
+  getSettings: () => ipcRenderer.invoke('get-settings'),
+  saveSettings: (settings: any) => ipcRenderer.invoke('save-settings', settings),
+  testReminder: (type?: string) => ipcRenderer.send('trigger-test-reminder', type),
+  onSettingsUpdated: (callback: (settings: any) => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, settings: any) => callback(settings);
+    ipcRenderer.on('settings-updated', sub);
+    return () => {
+      ipcRenderer.removeListener('settings-updated', sub);
+    };
+  },
 });

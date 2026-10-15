@@ -18,6 +18,7 @@ export interface AppSettings {
   };
   snoozeDurationMinutes: number;     // e.g. 5 minutes
   voiceMuted: boolean;
+  startWithWindows: boolean;
   reminderTypes: {
     water: ReminderTypeConfig;
     stretch: ReminderTypeConfig;
@@ -39,6 +40,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   snoozeDurationMinutes: 5,
   voiceMuted: false,
+  startWithWindows: false,
   reminderTypes: {
     water: {
       enabled: true,
