@@ -6,7 +6,8 @@ export interface ElectronAPI {
   setIgnoreMouseEvents: (ignore: boolean, options?: { forward: boolean }) => void;
   hideOverlay: () => void;
   notifyAnimationComplete: () => void;
-  onTriggerAnimation: (callback: () => void) => () => void;
+  notifyAction: (action: 'done' | 'snooze', snoozeMinutes?: number) => void;
+  onTriggerAnimation: (callback: (payload?: { message?: string }) => void) => () => void;
   onTriggerExit: (callback: () => void) => () => void;
 }
 

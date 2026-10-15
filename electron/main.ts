@@ -159,8 +159,12 @@ ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
   }
 });
 
+ipcMain.on('reminder-action', (_event, action, snoozeMinutes) => {
+  console.log(`[R3 Main] >>> REMINDER ACTION RECEIVED: action="${action}", snoozeMinutes=${snoozeMinutes || 0} <<<`);
+});
+
 ipcMain.on('animation-complete', () => {
-  console.log('[R2 Main] Animation complete received. Hiding overlay window (idle).');
+  console.log('[R3 Main] Animation complete received. Hiding overlay window (idle).');
   isAnimationPlaying = false;
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.hide();
@@ -170,66 +174,44 @@ ipcMain.on('animation-complete', () => {
 
 // App Lifecycle
 app.whenReady().then(() => {
-  console.log('[R2 Lifecycle] App ready event fired.');
+  console.log('[R3 Lifecycle] App ready event fired.');
   createOverlayWindow();
   createTray();
   registerShortcuts();
 
-  // Automated test runner for R2 verification
-  if (process.argv.includes('--test-r2')) {
-    console.log('[R2 Test] Running automated R2 animation test sequence...');
+  // Automated test runner for R3 verification
+  if (process.argv.includes('--test-r3')) {
+    console.log('[R3 Test] Running automated R3 NoteCard & Voice test sequence...');
     const docsDir = path.resolve(__dirname, '../../docs');
     if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
 
-    // Wait until renderer is ready, then trigger
     const waitForReady = setInterval(() => {
       if (isRendererReady) {
         clearInterval(waitForReady);
-        console.log('[R2 Test] Renderer is ready! Triggering animation sequence...');
+        console.log('[R3 Test] Renderer is ready! Triggering reminder animation...');
         triggerReminder();
 
-        // Test duplicate trigger while animation is playing (should be ignored)
-        setTimeout(() => {
-          console.log('[R2 Test] Testing second trigger while playing (expecting ignore)...');
-          triggerReminder();
-        }, 500);
-
-        // Capture Descent moment (at t = 2000ms, halfway down)
+        // Capture Note Card with character during sway (at t = 4800ms)
         setTimeout(async () => {
           if (overlayWindow && !overlayWindow.isDestroyed()) {
-            const img1 = await overlayWindow.webContents.capturePage();
-            fs.writeFileSync(path.join(docsDir, 'r2-descent.png'), img1.toPNG());
-            console.log(`[R2 Test] Captured docs/r2-descent.png (${img1.getSize().width}x${img1.getSize().height})`);
-          }
-        }, 2000);
+            const img = await overlayWindow.webContents.capturePage();
+            const target = path.join(docsDir, 'r3-note-card.png');
+            fs.writeFileSync(target, img.toPNG());
+            console.log(`[R3 Test] Captured docs/r3-note-card.png (${img.getSize().width}x${img.getSize().height})`);
 
-        // Capture Sway moment (at t = 4800ms)
-        setTimeout(async () => {
-          if (overlayWindow && !overlayWindow.isDestroyed()) {
-            const img2 = await overlayWindow.webContents.capturePage();
-            fs.writeFileSync(path.join(docsDir, 'r2-sway.png'), img2.toPNG());
-            console.log(`[R2 Test] Captured docs/r2-sway.png (${img2.getSize().width}x${img2.getSize().height})`);
+            // Simulate clicking Done (triggers exit climb)
+            setTimeout(() => {
+              console.log('[R3 Test] Simulating Done button dismissal...');
+              if (overlayWindow && !overlayWindow.isDestroyed()) {
+                overlayWindow.webContents.send('trigger-exit');
+                setTimeout(() => {
+                  console.log('[R3 Test] Milestone R3 test complete. Exiting.');
+                  app.quit();
+                }, 1500);
+              }
+            }, 800);
           }
         }, 4800);
-
-        // Trigger exit/retract and capture exit climb (at t = 6200ms)
-        setTimeout(async () => {
-          if (overlayWindow && !overlayWindow.isDestroyed()) {
-            overlayWindow.webContents.send('trigger-exit');
-            setTimeout(async () => {
-              if (overlayWindow && !overlayWindow.isDestroyed()) {
-                const img3 = await overlayWindow.webContents.capturePage();
-                fs.writeFileSync(path.join(docsDir, 'r2-exit.png'), img3.toPNG());
-                console.log(`[R2 Test] Captured docs/r2-exit.png (${img3.getSize().width}x${img3.getSize().height})`);
-
-                setTimeout(() => {
-                  console.log('[R2 Test] All R2 test captures complete. Exiting.');
-                  app.quit();
-                }, 1200);
-              }
-            }, 600);
-          }
-        }, 6200);
       }
     }, 200);
   }

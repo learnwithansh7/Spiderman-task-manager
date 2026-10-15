@@ -20,6 +20,17 @@ export interface MotionConfig {
     dampingK: number;
     frequencyW: number;
   };
+  noteCard: {
+    label: string;
+    defaultMessage: string;
+    doneButtonText: string;
+    snoozeButtonText: string;
+    voiceText: string;
+    isMutedDefault: boolean;
+    springStiffness: number;
+    springDamping: number;
+    offset: { x: number; y: number };
+  };
 }
 
 export const MOTION_CONFIG: MotionConfig = {
@@ -43,5 +54,16 @@ export const MOTION_CONFIG: MotionConfig = {
     initialSwayAngleDeg: 10,           // starting around 10 degrees
     dampingK: 0.75,                    // settles in ~4 seconds: exp(-0.75 * 4) = 0.0498
     frequencyW: 3.5,                   // pendulum oscillation frequency (rad/sec)
+  },
+  noteCard: {
+    label: 'REMINDER',
+    defaultMessage: 'Time to drink water!',
+    doneButtonText: 'Done',
+    snoozeButtonText: 'Snooze (5 min)',
+    voiceText: 'Time to drink water!',
+    isMutedDefault: false,
+    springStiffness: 180,              // spring stiffness for natural slide-in
+    springDamping: 15,                 // spring damping
+    offset: { x: -285, y: -10 },       // positioned nicely beside character
   },
 };

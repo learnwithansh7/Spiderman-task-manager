@@ -2,20 +2,36 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MOTION_CONFIG } from './config';
 import { AnimationPhase } from './types';
 import { Character } from './Character';
+import { NoteCard } from './NoteCard';
+import { speakReminder, stopVoice } from './voice';
 
 export const OverlayApp: React.FC = () => {
   const [phase, setPhase] = useState<AnimationPhase>('IDLE');
+  const [message, setMessage] = useState<string>(MOTION_CONFIG.noteCard.defaultMessage);
+  const [isMuted, setIsMuted] = useState<boolean>(MOTION_CONFIG.noteCard.isMutedDefault);
+
+  // Motion animation states
   const [threadLength, setThreadLength] = useState<number>(0);
   const [swayAngleDeg, setSwayAngleDeg] = useState<number>(0);
   const [characterScale, setCharacterScale] = useState<number>(MOTION_CONFIG.physics.initialScale);
   const [shadowIntensity, setShadowIntensity] = useState<number>(0);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
+  // Note card spring & visibility states
+  const [springProgress, setSpringProgress] = useState<number>(0);
+  const [cardOpacity, setCardOpacity] = useState<number>(0);
+
   const phaseRef = useRef<AnimationPhase>('IDLE');
   const phaseStartTimeRef = useRef<number>(0);
   const animFrameRef = useRef<number>(0);
   const autoExitTimerRef = useRef<NodeJS.Timeout | null>(null);
   const retractStartLengthRef = useRef<number>(0);
+
+  // Spring physics variables
+  const springPosRef = useRef<number>(0);
+  const springVelRef = useRef<number>(0);
+  const lastTimeRef = useRef<number>(0);
+  const voicePlayedRef = useRef<boolean>(false);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -41,7 +57,9 @@ export const OverlayApp: React.FC = () => {
   const startExit = useCallback((reason: string) => {
     if (phaseRef.current === 'EXITING' || phaseRef.current === 'IDLE') return;
 
-    console.log(`[R2 Motion] Starting exit/retract (trigger: ${reason}).`);
+    console.log(`[R3 Motion] Starting exit/retract (trigger: ${reason}).`);
+    stopVoice();
+
     if (autoExitTimerRef.current) {
       clearTimeout(autoExitTimerRef.current);
       autoExitTimerRef.current = null;
@@ -52,18 +70,51 @@ export const OverlayApp: React.FC = () => {
     phaseStartTimeRef.current = performance.now();
   }, [threadLength, windowSize.height]);
 
+  // Handle Done button click
+  const handleDone = useCallback(() => {
+    console.log('[R3 Action] Done button clicked.');
+    window.electronAPI?.notifyAction('done');
+    startExit('Done clicked');
+  }, [startExit]);
+
+  // Handle Snooze button click
+  const handleSnooze = useCallback(() => {
+    console.log('[R3 Action] Snooze (5 min) button clicked.');
+    window.electronAPI?.notifyAction('snooze', 5);
+    startExit('Snooze (5 min) clicked');
+  }, [startExit]);
+
+  // Toggle Mute
+  const handleToggleMute = useCallback(() => {
+    setIsMuted((prev) => {
+      const next = !prev;
+      console.log(`[R3 Voice] Mute toggled: ${next ? 'MUTED' : 'UNMUTED'}`);
+      if (next) stopVoice();
+      return next;
+    });
+  }, []);
+
   // Start the animation sequence
-  const startAnimation = useCallback(() => {
+  const startAnimation = useCallback((msg?: string) => {
     if (phaseRef.current !== 'IDLE') {
-      console.log('[R2 Motion] Animation already in progress. Ignoring duplicate trigger.');
+      console.log('[R3 Motion] Animation already playing. Ignoring duplicate trigger.');
       return;
     }
 
-    console.log('[R2 Motion] Starting descent animation (4s ease-out)...');
+    const reminderMsg = msg || MOTION_CONFIG.noteCard.defaultMessage;
+    setMessage(reminderMsg);
+    voicePlayedRef.current = false;
+
+    console.log(`[R3 Motion] Starting descent animation for: "${reminderMsg}"`);
     setThreadLength(0);
     setSwayAngleDeg(0);
     setCharacterScale(MOTION_CONFIG.physics.initialScale);
     setShadowIntensity(0);
+    setSpringProgress(0);
+    setCardOpacity(0);
+    springPosRef.current = 0;
+    springVelRef.current = 0;
+    lastTimeRef.current = performance.now();
 
     setPhase('DESCENDING');
     phaseStartTimeRef.current = performance.now();
@@ -76,9 +127,9 @@ export const OverlayApp: React.FC = () => {
 
     if (window.electronAPI?.onTriggerAnimation) {
       console.log('[Renderer] Subscribed to trigger-animation events.');
-      const unsubTrigger = window.electronAPI.onTriggerAnimation(() => {
-        console.log('[Renderer] Received "trigger-animation" event over IPC! Calling startAnimation().');
-        startAnimation();
+      const unsubTrigger = window.electronAPI.onTriggerAnimation((payload) => {
+        console.log('[Renderer] Received "trigger-animation" event over IPC! Starting animation.');
+        startAnimation(payload?.message);
       });
       const unsubExit = window.electronAPI.onTriggerExit?.(() => {
         console.log('[Renderer] Received "trigger-exit" event over IPC! Calling startExit().');
@@ -88,8 +139,6 @@ export const OverlayApp: React.FC = () => {
         unsubTrigger();
         unsubExit?.();
       };
-    } else {
-      console.warn('[Renderer] window.electronAPI.onTriggerAnimation is not defined!');
     }
   }, [startAnimation, startExit]);
 
@@ -99,6 +148,9 @@ export const OverlayApp: React.FC = () => {
     const initialAngleRad = (MOTION_CONFIG.physics.initialSwayAngleDeg * Math.PI) / 180;
 
     const animate = (time: number) => {
+      const dt = Math.min((time - (lastTimeRef.current || time)) / 1000, 0.05);
+      lastTimeRef.current = time;
+
       const currentPhase = phaseRef.current;
       const elapsed = time - phaseStartTimeRef.current;
 
@@ -121,20 +173,33 @@ export const OverlayApp: React.FC = () => {
         const descendSway = Math.sin(progress * Math.PI) * 1.5;
         setSwayAngleDeg(descendSway);
 
+        // As character nears the bottom (>75%), begin spring reveal of note card
+        if (progress > 0.75) {
+          const cardFactor = (progress - 0.75) / 0.25;
+          setCardOpacity(cardFactor);
+        }
+
         if (progress >= 1) {
-          console.log('[R2 Motion] Descent finished. Starting damped pendulum sway (4s)...');
+          console.log('[R3 Motion] Descent complete. Starting sway phase and presenting note card.');
           setPhase('SWAYING');
           phaseStartTimeRef.current = time;
 
+          // Play voice reminder ONCE when note card appears
+          if (!voicePlayedRef.current) {
+            voicePlayedRef.current = true;
+            console.log('[R3 Voice] Triggering spoken reminder voice once.');
+            speakReminder(message, isMuted);
+          }
+
           // Start 15s auto-exit timer
           autoExitTimerRef.current = setTimeout(() => {
-            console.log('[R2 Motion] 15s timeout reached without interaction. Auto-climbing back.');
+            console.log('[R3 Motion] 15s timeout reached without interaction. Auto-climbing back.');
             startExit('15s timeout');
           }, MOTION_CONFIG.timing.autoExitMs);
         }
       } else if (currentPhase === 'SWAYING') {
         const tSec = elapsed / 1000;
-        // Pendulum equation: angle(t) = A * e^(-k*t) * cos(w*t)
+        // Damped pendulum formula: angle(t) = A * e^(-k*t) * cos(w*t)
         const damping = Math.exp(-MOTION_CONFIG.physics.dampingK * tSec);
         const osc = Math.cos(MOTION_CONFIG.physics.frequencyW * tSec);
         const angleRad = initialAngleRad * damping * osc;
@@ -144,6 +209,17 @@ export const OverlayApp: React.FC = () => {
         setSwayAngleDeg(angleDeg);
         setCharacterScale(MOTION_CONFIG.physics.targetScale);
         setShadowIntensity(1);
+
+        // Note Card Spring Physics
+        const targetSpring = 1.0;
+        const springForce = -MOTION_CONFIG.noteCard.springStiffness * (springPosRef.current - targetSpring);
+        const dampingForce = -MOTION_CONFIG.noteCard.springDamping * springVelRef.current;
+        const accel = springForce + dampingForce;
+        springVelRef.current += accel * dt;
+        springPosRef.current += springVelRef.current * dt;
+
+        setSpringProgress(springPosRef.current);
+        setCardOpacity((prev) => Math.min(1, prev + dt * 4));
       } else if (currentPhase === 'EXITING') {
         const progress = Math.min(1, elapsed / MOTION_CONFIG.timing.exitDurationMs);
         const eased = easeInQuad(progress);
@@ -156,11 +232,16 @@ export const OverlayApp: React.FC = () => {
         setCharacterScale(MOTION_CONFIG.physics.targetScale - 0.2 * eased);
         setShadowIntensity(1 - eased);
 
+        // Fade out card quickly during climb
+        setCardOpacity((prev) => Math.max(0, prev - dt * 6));
+
         if (progress >= 1) {
-          console.log('[R2 Motion] Exit complete. Resetting to IDLE and hiding window.');
+          console.log('[R3 Motion] Exit complete. Resetting to IDLE and hiding window.');
           setPhase('IDLE');
           setThreadLength(0);
           setSwayAngleDeg(0);
+          setCardOpacity(0);
+          setSpringProgress(0);
           window.electronAPI?.notifyAnimationComplete();
         }
       }
@@ -170,7 +251,7 @@ export const OverlayApp: React.FC = () => {
 
     animFrameRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(animFrameRef.current);
-  }, [windowSize, startExit]);
+  }, [windowSize, message, isMuted, startExit]);
 
   // Geometry calculations
   const anchorX = windowSize.width * MOTION_CONFIG.geometry.anchorXPercent;
@@ -215,7 +296,7 @@ export const OverlayApp: React.FC = () => {
         </svg>
       )}
 
-      {/* Character hanging upside-down */}
+      {/* Character and NoteCard Container */}
       {threadLength > 0 && (
         <div
           style={{
@@ -231,57 +312,17 @@ export const OverlayApp: React.FC = () => {
             angleDeg={swayAngleDeg}
             scale={characterScale}
             shadowIntensity={shadowIntensity}
-            onClick={() => startExit('character clicked')}
           />
 
-          {/* R2 Indicator Card beside character */}
-          <div
-            onMouseEnter={() => window.electronAPI?.setIgnoreMouseEvents(false)}
-            onMouseLeave={() => window.electronAPI?.setIgnoreMouseEvents(true, { forward: true })}
-            style={{
-              position: 'absolute',
-              right: 85,
-              top: 10,
-              width: 220,
-              backgroundColor: 'rgba(15, 23, 42, 0.92)',
-              backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(148, 163, 184, 0.25)',
-              borderRadius: '10px',
-              padding: '12px 14px',
-              color: '#f8fafc',
-              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.45)',
-              pointerEvents: 'auto',
-              userSelect: 'none',
-              opacity: phase === 'DESCENDING' ? Math.min(1, threadLength / 100) : phase === 'EXITING' ? 0.2 : 1,
-              transition: 'opacity 0.2s ease',
-            }}
-          >
-            <div style={{ fontSize: '11px', fontWeight: 700, color: '#38bdf8', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
-              R2: Animation Prototype
-            </div>
-            <div style={{ fontSize: '13px', margin: '6px 0 10px 0', color: '#cbd5e1' }}>
-              Phase: <strong>{phase}</strong>
-            </div>
-            <button
-              onClick={() => startExit('button clicked')}
-              style={{
-                width: '100%',
-                padding: '6px 10px',
-                fontSize: '12px',
-                fontWeight: 600,
-                borderRadius: '6px',
-                border: 'none',
-                backgroundColor: '#0284c7',
-                color: '#ffffff',
-                cursor: 'pointer',
-              }}
-              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#0369a1')}
-              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#0284c7')}
-            >
-              Climb Up (Exit)
-            </button>
-          </div>
+          <NoteCard
+            message={message}
+            springProgress={springProgress}
+            opacity={cardOpacity}
+            isMuted={isMuted}
+            onToggleMute={handleToggleMute}
+            onDone={handleDone}
+            onSnooze={handleSnooze}
+          />
         </div>
       )}
     </div>

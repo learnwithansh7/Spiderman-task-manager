@@ -20,8 +20,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notifyAnimationComplete: () => {
     ipcRenderer.send('animation-complete');
   },
-  onTriggerAnimation: (callback: () => void) => {
-    const sub = () => callback();
+  notifyAction: (action: 'done' | 'snooze', snoozeMinutes?: number) => {
+    ipcRenderer.send('reminder-action', action, snoozeMinutes);
+  },
+  onTriggerAnimation: (callback: (payload?: { message?: string }) => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, payload?: { message?: string }) => callback(payload);
     ipcRenderer.on('trigger-animation', sub);
     return () => {
       ipcRenderer.removeListener('trigger-animation', sub);
