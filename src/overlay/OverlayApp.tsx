@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { MOTION_CONFIG } from './config';
 import { AnimationPhase } from './types';
 import { Character } from './Character';
+import { WebStrand } from './WebStrand';
 import { NoteCard } from './NoteCard';
 import { speakReminder, stopVoice } from './voice';
 
@@ -285,28 +286,17 @@ export const OverlayApp: React.FC = () => {
         backgroundColor: 'transparent',
       }}
     >
-      {/* SVG Thread from top anchor to character */}
+      {/* Dynamic Spider-Web Silk Wave Strand */}
       {threadLength > 0 && (
-        <svg
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            width: '100%',
-            height: '100%',
-            pointerEvents: 'none',
-          }}
-        >
-          <line
-            x1={anchorX}
-            y1={anchorY}
-            x2={characterX}
-            y2={characterY}
-            stroke={MOTION_CONFIG.geometry.threadColor}
-            strokeWidth={MOTION_CONFIG.geometry.threadWidth}
-            strokeLinecap="round"
-          />
-        </svg>
+        <WebStrand
+          startX={anchorX}
+          startY={anchorY}
+          endX={characterX}
+          endY={characterY}
+          swayAngleDeg={swayAngleDeg}
+          timeSec={(lastTimeRef.current || 0) / 1000}
+          isDescending={phase === 'DESCENDING'}
+        />
       )}
 
       {/* NoteCard Container - positioned stably beside resting character */}

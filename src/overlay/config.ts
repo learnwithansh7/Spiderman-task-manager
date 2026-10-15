@@ -39,8 +39,8 @@ export const MOTION_CONFIG: MotionConfig = {
     descentDepthPercent: 0.36,         // descends to ~36% screen height
     threadWidth: 2.0,                  // clean thin web line
     threadColor: 'rgba(240, 244, 250, 0.9)',
-    characterSize: { width: 90, height: 90 },
-    characterPivot: { x: 0.5, y: 0.0 }, // anchored at top/feet of hanging character
+    characterSize: { width: 160, height: 200 },
+    characterPivot: { x: 0.5, y: 0.0 }, // anchored at top/feet of upside down Spider-Man
   },
   timing: {
     descentDurationMs: 4000,           // ~4 seconds slow ease-out descent
