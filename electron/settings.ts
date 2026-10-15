@@ -1,5 +1,6 @@
 import path from 'path';
 import fs from 'fs';
+import { app } from 'electron';
 
 export type ReminderTypeKey = 'water' | 'stretch' | 'eyes';
 
@@ -29,7 +30,18 @@ export interface AppSettings {
   lastReminderType: ReminderTypeKey;
 }
 
-const SETTINGS_FILE = path.resolve(__dirname, '../../settings.json');
+export function getSettingsFilePath(): string {
+  try {
+    if (app && app.getPath) {
+      const userData = app.getPath('userData');
+      if (!fs.existsSync(userData)) {
+        fs.mkdirSync(userData, { recursive: true });
+      }
+      return path.join(userData, 'settings.json');
+    }
+  } catch {}
+  return path.resolve(__dirname, '../../settings.json');
+}
 
 export const DEFAULT_SETTINGS: AppSettings = {
   intervalMinutes: 45,
@@ -64,11 +76,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 export function loadSettings(): AppSettings {
+  const filePath = getSettingsFilePath();
   try {
-    if (fs.existsSync(SETTINGS_FILE)) {
-      const data = fs.readFileSync(SETTINGS_FILE, 'utf-8');
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, 'utf-8');
       const parsed = JSON.parse(data);
-      console.log(`[Settings] Loaded configuration from ${SETTINGS_FILE}`);
+      console.log(`[Settings] Loaded configuration from ${filePath}`);
       return { ...DEFAULT_SETTINGS, ...parsed };
     }
   } catch (err) {
@@ -80,10 +93,11 @@ export function loadSettings(): AppSettings {
 }
 
 export function saveSettings(settings: AppSettings): void {
+  const filePath = getSettingsFilePath();
   try {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2), 'utf-8');
-    console.log(`[Settings] Settings successfully saved to ${SETTINGS_FILE}`);
+    fs.writeFileSync(filePath, JSON.stringify(settings, null, 2), 'utf-8');
+    console.log(`[Settings] Settings successfully saved to ${filePath}`);
   } catch (err) {
-    console.error('[Settings] Error saving settings.json:', err);
+    console.error(`[Settings] Error saving settings to ${filePath}:`, err);
   }
 }

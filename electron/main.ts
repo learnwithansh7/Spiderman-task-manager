@@ -19,12 +19,15 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   console.log('[R7 Reliability] Another instance is already running. Quitting secondary instance.');
   app.quit();
-} else {
-  app.on('second-instance', () => {
-    console.log('[R7 Reliability] Second instance detected. Showing settings window.');
-    createOrShowSettingsWindow();
-  });
+  process.exit(0);
 }
+
+app.on('second-instance', () => {
+  console.log('[R7 Reliability] Second instance detected. Showing settings window.');
+  if (app.isReady()) {
+    createOrShowSettingsWindow();
+  }
+});
 
 let overlayWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
@@ -111,10 +114,22 @@ function createOverlayWindow() {
     console.warn('[R7 Reliability] Overlay window became unresponsive.');
   });
 
+  overlayWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.warn(`[R7 Window] did-fail-load: code=${errorCode}, desc="${errorDescription}", url="${validatedURL}"`);
+    if (validatedURL.startsWith('http')) {
+      const fallback = path.resolve(__dirname, '../../dist/renderer/overlay/index.html');
+      console.log(`[R7 Window] Dev server not responding; falling back to built local file: ${fallback}`);
+      overlayWindow?.loadFile(fallback);
+    }
+  });
+
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
     const devUrl = `${process.env.VITE_DEV_SERVER_URL}/overlay/index.html`;
     console.log(`[R7 Window] Loading Vite dev server overlay: ${devUrl}`);
-    overlayWindow.loadURL(devUrl);
+    overlayWindow.loadURL(devUrl).catch((err) => {
+      console.warn(`[R7 Window] Failed to load dev URL (${err.message}); falling back to local file...`);
+      overlayWindow?.loadFile(path.resolve(__dirname, '../../dist/renderer/overlay/index.html'));
+    });
   } else {
     const indexPath = path.resolve(__dirname, '../../dist/renderer/overlay/index.html');
     console.log(`[R7 Window] Loading built overlay index: ${indexPath}`);
@@ -180,10 +195,22 @@ function createOrShowSettingsWindow(): BrowserWindow {
     console.warn(`[R7 Reliability] Settings render process gone: reason="${details.reason}".`);
   });
 
+  settingsWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
+    console.warn(`[R7 Settings] did-fail-load: code=${errorCode}, desc="${errorDescription}", url="${validatedURL}"`);
+    if (validatedURL.startsWith('http')) {
+      const fallback = path.resolve(__dirname, '../../dist/renderer/settings/index.html');
+      console.log(`[R7 Settings] Dev server unavailable; falling back to built local file: ${fallback}`);
+      settingsWindow?.loadFile(fallback);
+    }
+  });
+
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
     const devUrl = `${process.env.VITE_DEV_SERVER_URL}/settings/index.html`;
     console.log(`[R7 Settings] Loading dev URL: ${devUrl}`);
-    settingsWindow.loadURL(devUrl);
+    settingsWindow.loadURL(devUrl).catch((err) => {
+      console.warn(`[R7 Settings] Failed to load dev URL (${err.message}); falling back to local file...`);
+      settingsWindow?.loadFile(path.resolve(__dirname, '../../dist/renderer/settings/index.html'));
+    });
   } else {
     const filePath = path.resolve(__dirname, '../../dist/renderer/settings/index.html');
     console.log(`[R7 Settings] Loading production file: ${filePath}`);

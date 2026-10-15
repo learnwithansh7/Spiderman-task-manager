@@ -3,6 +3,13 @@ const path = require('path');
 const electron = require('electron');
 
 async function start() {
+  // Clean up any stale background instances before launching dev
+  try {
+    if (process.platform === 'win32') {
+      execSync('taskkill /F /IM SpiderReminder.exe /T 2>nul || exit 0', { stdio: 'ignore' });
+    }
+  } catch {}
+
   const { createServer } = await import('vite');
 
   console.log('[Dev] Compiling Electron main and preload scripts...');
