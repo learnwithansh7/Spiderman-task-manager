@@ -17,4 +17,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
   hideOverlay: () => {
     ipcRenderer.send('hide-overlay');
   },
+  notifyAnimationComplete: () => {
+    ipcRenderer.send('animation-complete');
+  },
+  onTriggerAnimation: (callback: () => void) => {
+    const sub = () => callback();
+    ipcRenderer.on('trigger-animation', sub);
+    return () => {
+      ipcRenderer.removeListener('trigger-animation', sub);
+    };
+  },
+  onTriggerExit: (callback: () => void) => {
+    const sub = () => callback();
+    ipcRenderer.on('trigger-exit', sub);
+    return () => {
+      ipcRenderer.removeListener('trigger-exit', sub);
+    };
+  },
 });

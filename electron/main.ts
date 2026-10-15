@@ -4,13 +4,16 @@ import fs from 'fs';
 
 let overlayWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
+let isAnimationPlaying = false;
+let isRendererReady = false;
+let pendingTrigger = false;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
-console.log('[R1 Startup] Initializing SpiderReminder Milestone R1...');
+console.log('[R2 Startup] Initializing SpiderReminder Milestone R2...');
 
 function createOverlayWindow() {
-  console.log('[R1 Window] Creating transparent frameless overlay window...');
+  console.log('[R2 Window] Creating transparent frameless overlay window...');
   const primaryDisplay = screen.getPrimaryDisplay();
   const { x, y, width, height } = primaryDisplay.workArea;
 
@@ -23,9 +26,9 @@ function createOverlayWindow() {
     transparent: true,
     hasShadow: false,
     skipTaskbar: true,
-    focusable: false, // Ensures clicking never steals keyboard focus from background apps
+    focusable: false, // Never steal focus from background apps
     alwaysOnTop: true,
-    show: false, // Starts hidden when idle
+    show: false, // Hidden when idle
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -33,19 +36,25 @@ function createOverlayWindow() {
     },
   });
 
-  // Pin on top at screen-saver level
   overlayWindow.setAlwaysOnTop(true, 'screen-saver');
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-
-  // Pass mouse clicks through by default, forwarding moves for hover activation
   overlayWindow.setIgnoreMouseEvents(true, { forward: true });
 
+  // Forward renderer console messages to Node terminal
+  overlayWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    console.log(`[Renderer Console] [Level ${level}] ${message} (${sourceId}:${line})`);
+  });
+
+  overlayWindow.webContents.on('did-finish-load', () => {
+    console.log('[R2 Window] Renderer did-finish-load event fired.');
+  });
+
   if (isDev && process.env.VITE_DEV_SERVER_URL) {
-    console.log(`[R1 Window] Loading Vite dev server: ${process.env.VITE_DEV_SERVER_URL}`);
+    console.log(`[R2 Window] Loading Vite dev server: ${process.env.VITE_DEV_SERVER_URL}`);
     overlayWindow.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
     const indexPath = path.resolve(__dirname, '../../dist/overlay/index.html');
-    console.log(`[R1 Window] Loading built index: ${indexPath}`);
+    console.log(`[R2 Window] Loading built index: ${indexPath}`);
     overlayWindow.loadFile(indexPath);
   }
 
@@ -54,26 +63,34 @@ function createOverlayWindow() {
   });
 
   const bounds = overlayWindow.getBounds();
-  console.log(`[R1 Window] Overlay window created (hidden) at (${bounds.x}, ${bounds.y}) [${bounds.width}x${bounds.height}].`);
+  console.log(`[R2 Window] Overlay window created (hidden) at (${bounds.x}, ${bounds.y}) [${bounds.width}x${bounds.height}].`);
 }
 
-function showOverlay() {
-  if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  console.log('[R1 Action] Showing overlay window without stealing focus (showInactive)...');
-  // showInactive ensures currently focused apps (editor, browser, terminal) keep keyboard focus
+function triggerReminder() {
+  if (isAnimationPlaying) {
+    console.log('[R2 Main] Animation already playing! Ignoring second trigger.');
+    return;
+  }
+
+  if (!overlayWindow || overlayWindow.isDestroyed()) {
+    console.warn('[R2 Main] Overlay window not available.');
+    return;
+  }
+
+  if (!isRendererReady) {
+    console.log('[R2 Main] Renderer not ready yet. Queuing trigger...');
+    pendingTrigger = true;
+    return;
+  }
+
+  isAnimationPlaying = true;
+  console.log('[R2 Main] Starting reminder animation. Showing overlay window without focus.');
   overlayWindow.showInactive();
-  console.log(`[R1 Action] Overlay isVisible: ${overlayWindow.isVisible()}`);
-}
-
-function hideOverlay() {
-  if (!overlayWindow || overlayWindow.isDestroyed()) return;
-  console.log('[R1 Action] Hiding overlay window (idle state)...');
-  overlayWindow.hide();
-  overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+  overlayWindow.webContents.send('trigger-animation');
 }
 
 function createTray() {
-  console.log('[R1 Tray] Creating tray icon and context menu...');
+  console.log('[R2 Tray] Creating tray icon and context menu...');
   const iconPath = path.resolve(__dirname, '../../assets/icon.png');
   let icon: Electron.NativeImage;
 
@@ -86,55 +103,55 @@ function createTray() {
   tray = new Tray(icon);
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Show test overlay shape',
+      label: 'Test reminder',
       click: () => {
-        console.log('[R1 Tray] Menu item clicked: "Show test overlay shape"');
-        showOverlay();
-      },
-    },
-    {
-      label: 'Hide overlay',
-      click: () => {
-        console.log('[R1 Tray] Menu item clicked: "Hide overlay"');
-        hideOverlay();
+        console.log('[R2 Tray] Menu item clicked: "Test reminder"');
+        triggerReminder();
       },
     },
     { type: 'separator' },
     {
       label: 'Quit',
       click: () => {
-        console.log('[R1 Tray] Quit clicked. Exiting app.');
+        console.log('[R2 Tray] Quit clicked. Exiting app.');
         app.quit();
       },
     },
   ]);
 
-  tray.setToolTip('SpiderReminder R1');
+  tray.setToolTip('SpiderReminder R2');
   tray.setContextMenu(contextMenu);
-  console.log('[R1 Tray] Tray icon ready.');
+  console.log('[R2 Tray] Tray icon ready.');
 }
 
 function registerShortcuts() {
-  console.log('[R1 Shortcuts] Registering global shortcuts...');
+  console.log('[R2 Shortcuts] Registering global shortcuts...');
 
-  // Primary shortcut: Ctrl+Alt+R
   const primary = 'CommandOrControl+Alt+R';
   const primaryResult = globalShortcut.register(primary, () => {
-    console.log(`[R1 Shortcut] Primary shortcut pressed: ${primary}`);
-    showOverlay();
+    console.log(`[R2 Shortcut] Primary shortcut pressed: ${primary}`);
+    triggerReminder();
   });
 
-  // Fallback shortcut: Ctrl+Alt+Shift+R
   const fallback = 'CommandOrControl+Alt+Shift+R';
   const fallbackResult = globalShortcut.register(fallback, () => {
-    console.log(`[R1 Shortcut] Fallback shortcut pressed: ${fallback}`);
-    showOverlay();
+    console.log(`[R2 Shortcut] Fallback shortcut pressed: ${fallback}`);
+    triggerReminder();
   });
 
-  console.log(`[R1 Shortcuts] Primary "${primary}": ${primaryResult}, Fallback "${fallback}": ${fallbackResult}`);
+  console.log(`[R2 Shortcuts] Primary "${primary}": ${primaryResult}, Fallback "${fallback}": ${fallbackResult}`);
 }
 
 // IPC Handlers
+ipcMain.on('renderer-ready', () => {
+  console.log('[R2 Main] Renderer announced ready for animation triggers.');
+  isRendererReady = true;
+  if (pendingTrigger) {
+    pendingTrigger = false;
+    triggerReminder();
+  }
+});
+
 ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win && !win.isDestroyed()) {
@@ -142,43 +159,84 @@ ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
   }
 });
 
-ipcMain.on('hide-overlay', () => {
-  hideOverlay();
+ipcMain.on('animation-complete', () => {
+  console.log('[R2 Main] Animation complete received. Hiding overlay window (idle).');
+  isAnimationPlaying = false;
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.hide();
+    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+  }
 });
 
 // App Lifecycle
 app.whenReady().then(() => {
-  console.log('[R1 Lifecycle] App ready event fired.');
+  console.log('[R2 Lifecycle] App ready event fired.');
   createOverlayWindow();
   createTray();
   registerShortcuts();
 
-  // Automated test runner for R1 verification
-  if (process.argv.includes('--test-r1')) {
-    console.log('[R1 Test] Running automated R1 verification...');
-    setTimeout(async () => {
-      showOverlay();
+  // Automated test runner for R2 verification
+  if (process.argv.includes('--test-r2')) {
+    console.log('[R2 Test] Running automated R2 animation test sequence...');
+    const docsDir = path.resolve(__dirname, '../../docs');
+    if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
 
-      setTimeout(async () => {
-        if (overlayWindow && !overlayWindow.isDestroyed()) {
-          const docsDir = path.resolve(__dirname, '../../docs');
-          if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
+    // Wait until renderer is ready, then trigger
+    const waitForReady = setInterval(() => {
+      if (isRendererReady) {
+        clearInterval(waitForReady);
+        console.log('[R2 Test] Renderer is ready! Triggering animation sequence...');
+        triggerReminder();
 
-          const image = await overlayWindow.webContents.capturePage();
-          const target = path.join(docsDir, 'r1-overlay-foundation.png');
-          fs.writeFileSync(target, image.toPNG());
-          console.log(`[R1 Test] Screenshot saved to ${target} (${image.getSize().width}x${image.getSize().height})`);
+        // Test duplicate trigger while animation is playing (should be ignored)
+        setTimeout(() => {
+          console.log('[R2 Test] Testing second trigger while playing (expecting ignore)...');
+          triggerReminder();
+        }, 500);
 
-          console.log('[R1 Test] Test verification complete. Exiting.');
-          setTimeout(() => app.quit(), 500);
-        }
-      }, 1200);
-    }, 1500);
+        // Capture Descent moment (at t = 2000ms, halfway down)
+        setTimeout(async () => {
+          if (overlayWindow && !overlayWindow.isDestroyed()) {
+            const img1 = await overlayWindow.webContents.capturePage();
+            fs.writeFileSync(path.join(docsDir, 'r2-descent.png'), img1.toPNG());
+            console.log(`[R2 Test] Captured docs/r2-descent.png (${img1.getSize().width}x${img1.getSize().height})`);
+          }
+        }, 2000);
+
+        // Capture Sway moment (at t = 4800ms)
+        setTimeout(async () => {
+          if (overlayWindow && !overlayWindow.isDestroyed()) {
+            const img2 = await overlayWindow.webContents.capturePage();
+            fs.writeFileSync(path.join(docsDir, 'r2-sway.png'), img2.toPNG());
+            console.log(`[R2 Test] Captured docs/r2-sway.png (${img2.getSize().width}x${img2.getSize().height})`);
+          }
+        }, 4800);
+
+        // Trigger exit/retract and capture exit climb (at t = 6200ms)
+        setTimeout(async () => {
+          if (overlayWindow && !overlayWindow.isDestroyed()) {
+            overlayWindow.webContents.send('trigger-exit');
+            setTimeout(async () => {
+              if (overlayWindow && !overlayWindow.isDestroyed()) {
+                const img3 = await overlayWindow.webContents.capturePage();
+                fs.writeFileSync(path.join(docsDir, 'r2-exit.png'), img3.toPNG());
+                console.log(`[R2 Test] Captured docs/r2-exit.png (${img3.getSize().width}x${img3.getSize().height})`);
+
+                setTimeout(() => {
+                  console.log('[R2 Test] All R2 test captures complete. Exiting.');
+                  app.quit();
+                }, 1200);
+              }
+            }, 600);
+          }
+        }, 6200);
+      }
+    }, 200);
   }
 });
 
 app.on('will-quit', () => {
-  console.log('[R1 Lifecycle] will-quit: unregistering all shortcuts.');
+  console.log('[R2 Lifecycle] will-quit: unregistering all shortcuts.');
   globalShortcut.unregisterAll();
 });
 

@@ -1,26 +1,183 @@
-import React, { useState } from 'react';
-import './types';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { MOTION_CONFIG } from './config';
+import { AnimationPhase } from './types';
+import { Character } from './Character';
 
 export const OverlayApp: React.FC = () => {
-  const [clickCount, setClickCount] = useState<number>(0);
-  const [isHovered, setIsHovered] = useState<boolean>(false);
+  const [phase, setPhase] = useState<AnimationPhase>('IDLE');
+  const [threadLength, setThreadLength] = useState<number>(0);
+  const [swayAngleDeg, setSwayAngleDeg] = useState<number>(0);
+  const [characterScale, setCharacterScale] = useState<number>(MOTION_CONFIG.physics.initialScale);
+  const [shadowIntensity, setShadowIntensity] = useState<number>(0);
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
 
-  const handleMouseEnter = () => {
-    setIsHovered(true);
-    // Allow pointer clicks and interactions inside the card
-    window.electronAPI?.setIgnoreMouseEvents(false);
+  const phaseRef = useRef<AnimationPhase>('IDLE');
+  const phaseStartTimeRef = useRef<number>(0);
+  const animFrameRef = useRef<number>(0);
+  const autoExitTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const retractStartLengthRef = useRef<number>(0);
+
+  useEffect(() => {
+    phaseRef.current = phase;
+  }, [phase]);
+
+  // Window resize listener
+  useEffect(() => {
+    const handleResize = () => setWindowSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Ease-out cubic: fast at first, then slower and slower (gives "slows down gently" feel)
+  const easeOutCubic = (p: number): number => {
+    const inv = 1 - p;
+    return 1 - inv * inv * inv;
   };
 
-  const handleMouseLeave = () => {
-    setIsHovered(false);
-    // Clicks pass through everywhere outside the card
-    window.electronAPI?.setIgnoreMouseEvents(true, { forward: true });
-  };
+  // Ease-in quadratic for climb back up
+  const easeInQuad = (p: number): number => p * p;
 
-  const handleDismiss = () => {
-    window.electronAPI?.setIgnoreMouseEvents(true, { forward: true });
-    window.electronAPI?.hideOverlay();
-  };
+  // Trigger the exit/retract animation
+  const startExit = useCallback((reason: string) => {
+    if (phaseRef.current === 'EXITING' || phaseRef.current === 'IDLE') return;
+
+    console.log(`[R2 Motion] Starting exit/retract (trigger: ${reason}).`);
+    if (autoExitTimerRef.current) {
+      clearTimeout(autoExitTimerRef.current);
+      autoExitTimerRef.current = null;
+    }
+
+    retractStartLengthRef.current = threadLength || (windowSize.height * MOTION_CONFIG.geometry.descentDepthPercent);
+    setPhase('EXITING');
+    phaseStartTimeRef.current = performance.now();
+  }, [threadLength, windowSize.height]);
+
+  // Start the animation sequence
+  const startAnimation = useCallback(() => {
+    if (phaseRef.current !== 'IDLE') {
+      console.log('[R2 Motion] Animation already in progress. Ignoring duplicate trigger.');
+      return;
+    }
+
+    console.log('[R2 Motion] Starting descent animation (4s ease-out)...');
+    setThreadLength(0);
+    setSwayAngleDeg(0);
+    setCharacterScale(MOTION_CONFIG.physics.initialScale);
+    setShadowIntensity(0);
+
+    setPhase('DESCENDING');
+    phaseStartTimeRef.current = performance.now();
+  }, []);
+
+  // Listen for trigger events from main process
+  useEffect(() => {
+    console.log('[Renderer] OverlayApp mounted. Notifying main process (renderer-ready).');
+    window.electronAPI?.send('renderer-ready');
+
+    if (window.electronAPI?.onTriggerAnimation) {
+      console.log('[Renderer] Subscribed to trigger-animation events.');
+      const unsubTrigger = window.electronAPI.onTriggerAnimation(() => {
+        console.log('[Renderer] Received "trigger-animation" event over IPC! Calling startAnimation().');
+        startAnimation();
+      });
+      const unsubExit = window.electronAPI.onTriggerExit?.(() => {
+        console.log('[Renderer] Received "trigger-exit" event over IPC! Calling startExit().');
+        startExit('IPC test trigger');
+      });
+      return () => {
+        unsubTrigger();
+        unsubExit?.();
+      };
+    } else {
+      console.warn('[Renderer] window.electronAPI.onTriggerAnimation is not defined!');
+    }
+  }, [startAnimation, startExit]);
+
+  // Animation physics loop
+  useEffect(() => {
+    const targetLength = windowSize.height * MOTION_CONFIG.geometry.descentDepthPercent;
+    const initialAngleRad = (MOTION_CONFIG.physics.initialSwayAngleDeg * Math.PI) / 180;
+
+    const animate = (time: number) => {
+      const currentPhase = phaseRef.current;
+      const elapsed = time - phaseStartTimeRef.current;
+
+      if (currentPhase === 'DESCENDING') {
+        const progress = Math.min(1, elapsed / MOTION_CONFIG.timing.descentDurationMs);
+        const eased = easeOutCubic(progress);
+
+        // Thread lengthens as character descends
+        setThreadLength(targetLength * eased);
+
+        // Scale grows from 0.8 to 1.0 (coming toward you effect)
+        const scale = MOTION_CONFIG.physics.initialScale +
+          (MOTION_CONFIG.physics.targetScale - MOTION_CONFIG.physics.initialScale) * eased;
+        setCharacterScale(scale);
+
+        // Soft shadow intensity increases
+        setShadowIntensity(eased);
+
+        // Gentle descent swing
+        const descendSway = Math.sin(progress * Math.PI) * 1.5;
+        setSwayAngleDeg(descendSway);
+
+        if (progress >= 1) {
+          console.log('[R2 Motion] Descent finished. Starting damped pendulum sway (4s)...');
+          setPhase('SWAYING');
+          phaseStartTimeRef.current = time;
+
+          // Start 15s auto-exit timer
+          autoExitTimerRef.current = setTimeout(() => {
+            console.log('[R2 Motion] 15s timeout reached without interaction. Auto-climbing back.');
+            startExit('15s timeout');
+          }, MOTION_CONFIG.timing.autoExitMs);
+        }
+      } else if (currentPhase === 'SWAYING') {
+        const tSec = elapsed / 1000;
+        // Pendulum equation: angle(t) = A * e^(-k*t) * cos(w*t)
+        const damping = Math.exp(-MOTION_CONFIG.physics.dampingK * tSec);
+        const osc = Math.cos(MOTION_CONFIG.physics.frequencyW * tSec);
+        const angleRad = initialAngleRad * damping * osc;
+        const angleDeg = (angleRad * 180) / Math.PI;
+
+        setThreadLength(targetLength);
+        setSwayAngleDeg(angleDeg);
+        setCharacterScale(MOTION_CONFIG.physics.targetScale);
+        setShadowIntensity(1);
+      } else if (currentPhase === 'EXITING') {
+        const progress = Math.min(1, elapsed / MOTION_CONFIG.timing.exitDurationMs);
+        const eased = easeInQuad(progress);
+        const startL = retractStartLengthRef.current || targetLength;
+        const currentL = Math.max(0, startL * (1 - eased));
+
+        setThreadLength(currentL);
+        // Angle dampens to zero rapidly while climbing
+        setSwayAngleDeg((prev) => prev * (1 - progress));
+        setCharacterScale(MOTION_CONFIG.physics.targetScale - 0.2 * eased);
+        setShadowIntensity(1 - eased);
+
+        if (progress >= 1) {
+          console.log('[R2 Motion] Exit complete. Resetting to IDLE and hiding window.');
+          setPhase('IDLE');
+          setThreadLength(0);
+          setSwayAngleDeg(0);
+          window.electronAPI?.notifyAnimationComplete();
+        }
+      }
+
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+
+    animFrameRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(animFrameRef.current);
+  }, [windowSize, startExit]);
+
+  // Geometry calculations
+  const anchorX = windowSize.width * MOTION_CONFIG.geometry.anchorXPercent;
+  const anchorY = 0;
+  const angleRad = (swayAngleDeg * Math.PI) / 180;
+  const characterX = anchorX + threadLength * Math.sin(angleRad);
+  const characterY = anchorY + threadLength * Math.cos(angleRad);
 
   return (
     <div
@@ -34,121 +191,99 @@ export const OverlayApp: React.FC = () => {
         backgroundColor: 'transparent',
       }}
     >
-      {/* Coloured shape card anchored in upper-right screen area */}
-      <div
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        style={{
-          position: 'absolute',
-          top: 60,
-          right: 80,
-          width: 320,
-          backgroundColor: 'rgba(18, 22, 30, 0.94)',
-          backdropFilter: 'blur(16px)',
-          border: isHovered ? '2px solid #58a6ff' : '2px solid rgba(88, 166, 255, 0.4)',
-          borderRadius: '14px',
-          padding: '20px 24px',
-          boxShadow: isHovered
-            ? '0 16px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(88, 166, 255, 0.35)'
-            : '0 12px 32px rgba(0, 0, 0, 0.5)',
-          color: '#f0f6fc',
-          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-          pointerEvents: 'auto',
-          userSelect: 'none',
-          transition: 'border 0.2s ease, box-shadow 0.2s ease',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '12px',
-        }}
-      >
-        {/* Header Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span
+      {/* SVG Thread from top anchor to character */}
+      {threadLength > 0 && (
+        <svg
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: '100%',
+            height: '100%',
+            pointerEvents: 'none',
+          }}
+        >
+          <line
+            x1={anchorX}
+            y1={anchorY}
+            x2={characterX}
+            y2={characterY}
+            stroke={MOTION_CONFIG.geometry.threadColor}
+            strokeWidth={MOTION_CONFIG.geometry.threadWidth}
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
+
+      {/* Character hanging upside-down */}
+      {threadLength > 0 && (
+        <div
+          style={{
+            position: 'absolute',
+            left: characterX,
+            top: characterY,
+            pointerEvents: 'none',
+          }}
+        >
+          <Character
+            size={MOTION_CONFIG.geometry.characterSize}
+            pivot={MOTION_CONFIG.geometry.characterPivot}
+            angleDeg={swayAngleDeg}
+            scale={characterScale}
+            shadowIntensity={shadowIntensity}
+            onClick={() => startExit('character clicked')}
+          />
+
+          {/* R2 Indicator Card beside character */}
+          <div
+            onMouseEnter={() => window.electronAPI?.setIgnoreMouseEvents(false)}
+            onMouseLeave={() => window.electronAPI?.setIgnoreMouseEvents(true, { forward: true })}
+            style={{
+              position: 'absolute',
+              right: 85,
+              top: 10,
+              width: 220,
+              backgroundColor: 'rgba(15, 23, 42, 0.92)',
+              backdropFilter: 'blur(12px)',
+              border: '1px solid rgba(148, 163, 184, 0.25)',
+              borderRadius: '10px',
+              padding: '12px 14px',
+              color: '#f8fafc',
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.45)',
+              pointerEvents: 'auto',
+              userSelect: 'none',
+              opacity: phase === 'DESCENDING' ? Math.min(1, threadLength / 100) : phase === 'EXITING' ? 0.2 : 1,
+              transition: 'opacity 0.2s ease',
+            }}
+          >
+            <div style={{ fontSize: '11px', fontWeight: 700, color: '#38bdf8', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+              R2: Animation Prototype
+            </div>
+            <div style={{ fontSize: '13px', margin: '6px 0 10px 0', color: '#cbd5e1' }}>
+              Phase: <strong>{phase}</strong>
+            </div>
+            <button
+              onClick={() => startExit('button clicked')}
               style={{
-                width: '10px',
-                height: '10px',
-                borderRadius: '50%',
-                backgroundColor: '#3fb950',
-                boxShadow: '0 0 8px #3fb950',
-                display: 'inline-block',
+                width: '100%',
+                padding: '6px 10px',
+                fontSize: '12px',
+                fontWeight: 600,
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: '#0284c7',
+                color: '#ffffff',
+                cursor: 'pointer',
               }}
-            />
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 700,
-                letterSpacing: '1px',
-                color: '#58a6ff',
-                textTransform: 'uppercase',
-              }}
+              onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#0369a1')}
+              onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#0284c7')}
             >
-              R1: Overlay Foundation
-            </span>
+              Climb Up (Exit)
+            </button>
           </div>
-
-          <span
-            style={{
-              fontSize: '11px',
-              padding: '2px 8px',
-              borderRadius: '12px',
-              backgroundColor: isHovered ? 'rgba(63, 185, 80, 0.2)' : 'rgba(255, 255, 255, 0.1)',
-              color: isHovered ? '#3fb950' : '#8b949e',
-              fontWeight: 600,
-            }}
-          >
-            {isHovered ? 'Mouse Active' : 'Pass-Through'}
-          </span>
         </div>
-
-        {/* Informational Text */}
-        <div style={{ fontSize: '14px', lineHeight: '1.45', color: '#c9d1d9' }}>
-          This overlay is <strong>transparent</strong>, <strong>frameless</strong>, and <strong>always on top</strong>.
-          Clicks pass through everywhere outside this shape so you can type and work in other apps underneath.
-        </div>
-
-        {/* Interactive Buttons */}
-        <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
-          <button
-            onClick={() => setClickCount((c) => c + 1)}
-            style={{
-              flex: 1,
-              padding: '8px 12px',
-              fontSize: '13px',
-              fontWeight: 600,
-              borderRadius: '8px',
-              border: 'none',
-              backgroundColor: '#238636',
-              color: '#ffffff',
-              cursor: 'pointer',
-              transition: 'background-color 0.15s ease',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#2ea043')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#238636')}
-          >
-            Clicks: {clickCount}
-          </button>
-
-          <button
-            onClick={handleDismiss}
-            style={{
-              padding: '8px 14px',
-              fontSize: '13px',
-              fontWeight: 500,
-              borderRadius: '8px',
-              border: '1px solid rgba(240, 246, 252, 0.2)',
-              backgroundColor: 'rgba(255, 255, 255, 0.08)',
-              color: '#f0f6fc',
-              cursor: 'pointer',
-              transition: 'background-color 0.15s ease',
-            }}
-            onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.16)')}
-            onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)')}
-          >
-            Dismiss
-          </button>
-        </div>
-      </div>
+      )}
     </div>
   );
 };
