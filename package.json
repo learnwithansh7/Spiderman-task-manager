@@ -1,8 +1,9 @@
 {
   "name": "spider-reminder",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "SpiderReminder - Windows desktop reminder app",
   "main": "dist/electron/main.js",
+  "author": "SpiderReminder Team",
   "scripts": {
     "dev": "node scripts/dev.js",
     "build:electron": "tsc -p tsconfig.electron.json",
@@ -16,7 +17,37 @@
     "test:r5": "node scripts/dev.js --test-r5",
     "test:r6": "node scripts/dev.js --test-r6",
     "test:r7": "node scripts/dev.js --test-r7",
+    "test:r8": "npm run dist:dir",
+    "dist:dir": "npm run build && electron-builder --dir",
+    "dist": "npm run build && electron-builder --win",
     "start": "npm run build && electron dist/electron/main.js"
+  },
+  "build": {
+    "appId": "com.spiderreminder.app",
+    "productName": "SpiderReminder",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "scripts/check-fullscreen.ps1",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SpiderReminder"
+    }
   },
   "dependencies": {
     "react": "18.3.1",
@@ -28,6 +59,7 @@
     "@types/react-dom": "18.3.1",
     "@vitejs/plugin-react": "4.3.4",
     "electron": "33.2.1",
+    "electron-builder": "25.1.8",
     "typescript": "5.6.3",
     "vite": "5.4.11"
   }

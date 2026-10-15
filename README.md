@@ -16,7 +16,32 @@ A Windows desktop reminder app where a 3D animated hero hanging upside down glid
 | **R5: Tray & Settings Window** | **DONE** | Full tray context menu (status, multi-type preview, settings, login item checkbox, quit), dedicated React dark settings window, close-to-tray interception, and "Start with Windows" integration (`app.setLoginItemSettings`). Tag: `r5-tray-and-settings`. |
 | **R6: The Real 3D Character** | **DONE** | Seamless fallback hierarchy (WebM with alpha -> PNG image -> neutral SVG placeholder), VP9 alpha video rendering with phase synchronization (play/pause), and asset generator script. Tag: `r6-character`. |
 | **R7: Polish & Reliability** | **DONE** | Fullscreen game/presentation detection (`isForegroundAppFullscreen`), multi-monitor bounds tracking (`screen.on('display-metrics-changed')`), single-instance locking (`requestSingleInstanceLock`), and renderer crash recovery (`render-process-gone`). Tag: `r7-polish`. |
-| **R8: Installer & Release** | Up Next | `electron-builder` Windows installer packaging. |
+| **R8: Installer & Release** | **DONE** | `electron-builder` Windows packaging: NSIS standard installer, standalone portable executable, unpacked directory, custom 256x256 `.ico` icon, and verified SHA256 hashes. Tag: `r8-release`. |
+
+---
+
+## Installer & Release (Milestone R8)
+
+SpiderReminder is fully packaged for production distribution on Windows 10/11 x64 using `electron-builder`.
+
+### Release Outputs (`release/`)
+| File | Type | Size | Description |
+|---|---|---|---|
+| **`SpiderReminder Setup 1.0.0.exe`** | NSIS Installer | **82.8 MB** | Full Windows setup wizard with Start Menu shortcuts, desktop shortcut option, and clean uninstaller. |
+| **`SpiderReminder 1.0.0.exe`** | Portable Executable | **82.6 MB** | Zero-install standalone binary that runs immediately from any folder or USB drive. |
+| **`release/win-unpacked/SpiderReminder.exe`** | Directory Build | **189 MB** | Pre-extracted binary directory for developer testing without re-packing. |
+
+### Build Commands
+```bash
+# Build production NSIS installer and portable executable
+npm run dist
+
+# Build unpacked directory only (fast verification)
+npm run dist:dir
+```
+
+### Application Icon
+Generated a dedicated 256x256 Windows icon (`assets/icon.ico` & `assets/icon.png`) incorporating multiple embedded icon sizes (16x16, 32x32, 48x48, 64x64, 128x128, 256x256) via `scripts/generate-icon.js` for crisp taskbar, tray, and desktop rendering.
 
 ---
 
@@ -221,6 +246,7 @@ npm run test:r3
 
 ## Verification Artifacts (`docs/`)
 
+- [`docs/r8-release.png`](docs/r8-release.png) — Milestone R8 release verification matrix showing NSIS installer, portable binary, hashes, and production readiness.
 - [`docs/r7-polish.png`](docs/r7-polish.png) — Milestone R7 verification screenshot with single-instance lock, fullscreen game check, and multi-monitor bounds adaptation.
 - [`docs/r6-character.png`](docs/r6-character.png) — Real animated character hanging from web thread rendered via transparent WebM video (`character.webm` with alpha).
 - [`docs/r5-settings-window.png`](docs/r5-settings-window.png) — Dedicated React Settings panel with dark theme, interval presets, active hours, snooze/voice controls, and startup toggle.
