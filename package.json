@@ -1,0 +1,27 @@
+{
+  "name": "spider-reminder",
+  "version": "0.1.0",
+  "description": "SpiderReminder - Windows desktop reminder app",
+  "main": "dist/electron/main.js",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "build:vite": "vite build",
+    "build": "npm run build:vite && npm run build:electron",
+    "test:r0": "npm run build:electron && electron dist/electron/main.js --r0-test",
+    "start": "electron dist/electron/main.js"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.9.0",
+    "@types/react": "18.3.12",
+    "@types/react-dom": "18.3.1",
+    "@vitejs/plugin-react": "4.3.4",
+    "electron": "33.2.1",
+    "typescript": "5.6.3",
+    "vite": "5.4.11"
+  }
+}
