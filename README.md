@@ -15,8 +15,44 @@ A Windows desktop reminder app where a 3D animated hero hanging upside down glid
 | **R4: Scheduler and Settings** | **DONE** | Heartbeat scheduler engine, active hours gating (09:00–18:00), snooze handling, sleep/wake survival via `powerMonitor`, rotating reminder types (`water`, `stretch`, `eyes`), and JSON persistence in `settings.json`. Tag: `r4-scheduler`. |
 | **R5: Tray & Settings Window** | **DONE** | Full tray context menu (status, multi-type preview, settings, login item checkbox, quit), dedicated React dark settings window, close-to-tray interception, and "Start with Windows" integration (`app.setLoginItemSettings`). Tag: `r5-tray-and-settings`. |
 | **R6: The Real 3D Character** | **DONE** | Seamless fallback hierarchy (WebM with alpha -> PNG image -> neutral SVG placeholder), VP9 alpha video rendering with phase synchronization (play/pause), and asset generator script. Tag: `r6-character`. |
-| **R7: Polish & Reliability** | Up Next | Fullscreen app detection, multi-monitor support, and crash resilience. |
-| **R8: Installer & Release** | Planned | `electron-builder` Windows installer packaging. |
+| **R7: Polish & Reliability** | **DONE** | Fullscreen game/presentation detection (`isForegroundAppFullscreen`), multi-monitor bounds tracking (`screen.on('display-metrics-changed')`), single-instance locking (`requestSingleInstanceLock`), and renderer crash recovery (`render-process-gone`). Tag: `r7-polish`. |
+| **R8: Installer & Release** | Up Next | `electron-builder` Windows installer packaging. |
+
+---
+
+## Polish & Reliability (Milestone R7)
+
+- **Fullscreen Game & Presentation Detection (`electron/system.ts`)**:
+  - Automatically queries the Windows foreground application dimensions before triggering a reminder.
+  - If a user is immersed in a fullscreen video player, presentation, or game, the reminder automatically postpones by 3 minutes to avoid losing focus or disrupting gameplay.
+- **Dynamic Multi-Monitor Support**:
+  - Actively listens to `display-added`, `display-removed`, and `display-metrics-changed` events.
+  - Dynamically recalculates work area boundaries and repositions the overlay to always fit the primary screen correctly across DPI/resolution changes.
+- **Single Instance Enforcement**:
+  - `app.requestSingleInstanceLock()` prevents accidental duplicate processes.
+  - Secondary launches immediately focus the existing Settings window and terminate.
+- **Process & Renderer Crash Recovery**:
+  - Intercepts `render-process-gone` and automatically rebuilds the transparent overlay window if the renderer terminates.
+  - Global `uncaughtException` and `unhandledRejection` guards prevent silent process termination.
+
+---
+
+## How to Run Milestone R7
+
+### 1. Development Mode
+```bash
+npm run dev
+```
+
+### 2. Automated Test Verification
+```bash
+npm run test:r7
+```
+Runs the automated verification suite:
+1. Verifies `requestSingleInstanceLock` active status.
+2. Runs `isForegroundAppFullscreen()` check.
+3. Repositions overlay across simulated display metrics updates.
+4. Triggers reminder and captures `docs/r7-polish.png`.
 
 ---
 
@@ -185,6 +221,7 @@ npm run test:r3
 
 ## Verification Artifacts (`docs/`)
 
+- [`docs/r7-polish.png`](docs/r7-polish.png) — Milestone R7 verification screenshot with single-instance lock, fullscreen game check, and multi-monitor bounds adaptation.
 - [`docs/r6-character.png`](docs/r6-character.png) — Real animated character hanging from web thread rendered via transparent WebM video (`character.webm` with alpha).
 - [`docs/r5-settings-window.png`](docs/r5-settings-window.png) — Dedicated React Settings panel with dark theme, interval presets, active hours, snooze/voice controls, and startup toggle.
 - [`docs/r4-scheduled-reminder.png`](docs/r4-scheduled-reminder.png) — Scheduled reminder note card and character captured during automated suite execution.

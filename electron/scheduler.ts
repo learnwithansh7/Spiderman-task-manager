@@ -1,5 +1,6 @@
 import { powerMonitor } from 'electron';
 import { AppSettings, ReminderTypeKey, loadSettings, saveSettings } from './settings';
+import { isForegroundAppFullscreen } from './system';
 
 export type TriggerCallback = (reminderType: ReminderTypeKey, message: string, voiceText: string) => void;
 
@@ -102,23 +103,34 @@ export class ReminderScheduler {
     const now = Date.now();
     if (this.settings.nextTriggerTimestamp > 0 && now >= this.settings.nextTriggerTimestamp) {
       // Check active hours
-      if (this.isWithinActiveHours()) {
-        console.log('[Scheduler] Reminder timestamp reached and active hours confirmed.');
+      if (!this.isWithinActiveHours()) {
+        console.log('[Scheduler] Reminder due, but currently outside configured active hours. Postponing check.');
+        return;
+      }
+
+      // Check if user is in a fullscreen app, game, or presentation
+      isForegroundAppFullscreen().then((isFullscreen) => {
+        if (isFullscreen) {
+          console.log('[Scheduler] Fullscreen game or presentation detected! Postponing reminder by 3 minutes so as not to disrupt user.');
+          this.settings.nextTriggerTimestamp = Date.now() + 3 * 60 * 1000;
+          saveSettings(this.settings);
+          return;
+        }
+
+        console.log('[Scheduler] Reminder timestamp reached, active hours confirmed, and no fullscreen app.');
         const type = this.getNextReminderType();
         const config = this.settings.reminderTypes[type];
 
         this.settings.lastReminderType = type;
-        this.settings.lastTriggerTimestamp = now;
+        this.settings.lastTriggerTimestamp = Date.now();
 
-        // Auto schedule next occurrence (will be confirmed when user clicks Done)
+        // Auto schedule next occurrence
         const delayMs = this.settings.intervalMinutes * 60 * 1000;
-        this.settings.nextTriggerTimestamp = now + delayMs;
+        this.settings.nextTriggerTimestamp = Date.now() + delayMs;
         saveSettings(this.settings);
 
         this.onTriggerCallback?.(type, config.message, config.voiceText);
-      } else {
-        console.log('[Scheduler] Reminder due, but currently outside configured active hours. Postponing check.');
-      }
+      });
     }
   }
 
