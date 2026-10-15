@@ -35,11 +35,11 @@ export interface MotionConfig {
 
 export const MOTION_CONFIG: MotionConfig = {
   geometry: {
-    anchorXPercent: 0.80,              // 80% screen width
-    descentDepthPercent: 0.35,         // descends to ~35% screen height
-    threadWidth: 1.5,                  // thin web line
-    threadColor: 'rgba(235, 238, 245, 0.85)',
-    characterSize: { width: 72, height: 72 },
+    anchorXPercent: 0.82,              // 82% screen width
+    descentDepthPercent: 0.36,         // descends to ~36% screen height
+    threadWidth: 2.0,                  // clean thin web line
+    threadColor: 'rgba(240, 244, 250, 0.9)',
+    characterSize: { width: 90, height: 90 },
     characterPivot: { x: 0.5, y: 0.0 }, // anchored at top/feet of hanging character
   },
   timing: {
@@ -49,21 +49,21 @@ export const MOTION_CONFIG: MotionConfig = {
     exitDurationMs: 1500,              // ~1.5 seconds ease-in climb up
   },
   physics: {
-    initialScale: 0.8,                 // starts smaller above screen
+    initialScale: 0.75,                // starts smaller above screen
     targetScale: 1.0,                  // grows to full size (fakes coming toward you)
-    initialSwayAngleDeg: 10,           // starting around 10 degrees
-    dampingK: 0.75,                    // settles in ~4 seconds: exp(-0.75 * 4) = 0.0498
-    frequencyW: 3.5,                   // pendulum oscillation frequency (rad/sec)
+    initialSwayAngleDeg: 8,            // clean natural 8 degrees sway
+    dampingK: 0.85,                    // settles smoothly: exp(-0.85 * 3.5) = 0.05
+    frequencyW: 3.2,                   // pendulum oscillation frequency (rad/sec)
   },
   noteCard: {
-    label: 'REMINDER',
+    label: 'HEALTH REMINDER',
     defaultMessage: 'Time to drink water!',
     doneButtonText: 'Done',
-    snoozeButtonText: 'Snooze (5 min)',
+    snoozeButtonText: 'Snooze (5m)',
     voiceText: 'Time to drink water!',
     isMutedDefault: false,
-    springStiffness: 180,              // spring stiffness for natural slide-in
-    springDamping: 15,                 // spring damping
-    offset: { x: -285, y: -10 },       // positioned nicely beside character
+    springStiffness: 170,              // spring stiffness for natural slide-in
+    springDamping: 14,                 // spring damping
+    offset: { x: -400, y: -10 },       // guaranteed 50px+ clearance from maximum sway reach
   },
 };

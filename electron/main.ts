@@ -157,10 +157,10 @@ function createOrShowSettingsWindow(): BrowserWindow {
   const winIcon = fs.existsSync(iconPath) ? nativeImage.createFromPath(iconPath) : undefined;
 
   settingsWindow = new BrowserWindow({
-    width: 500,
-    height: 680,
-    minWidth: 450,
-    minHeight: 580,
+    width: 540,
+    height: 720,
+    minWidth: 460,
+    minHeight: 600,
     title: 'SpiderReminder Settings',
     icon: winIcon,
     backgroundColor: '#0b1120',
@@ -411,6 +411,13 @@ ipcMain.handle('save-settings', (_event, newSettings: AppSettings) => {
   scheduler?.updateSettings(newSettings);
   applyLoginItemSettings(newSettings.startWithWindows);
   updateTrayMenu();
+
+  // User requested: When saving settings, trigger the reminder immediately!
+  console.log('[R7 Main] Settings saved - triggering reminder immediately!');
+  setTimeout(() => {
+    scheduler?.triggerImmediateTest();
+  }, 350);
+
   return { success: true };
 });
 

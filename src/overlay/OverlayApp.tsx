@@ -309,7 +309,30 @@ export const OverlayApp: React.FC = () => {
         </svg>
       )}
 
-      {/* Character and NoteCard Container */}
+      {/* NoteCard Container - positioned stably beside resting character */}
+      {cardOpacity > 0.01 && (
+        <div
+          style={{
+            position: 'absolute',
+            left: anchorX + MOTION_CONFIG.noteCard.offset.x,
+            top: windowSize.height * MOTION_CONFIG.geometry.descentDepthPercent + MOTION_CONFIG.noteCard.offset.y,
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}
+        >
+          <NoteCard
+            message={message}
+            springProgress={springProgress}
+            opacity={cardOpacity}
+            isMuted={isMuted}
+            onToggleMute={handleToggleMute}
+            onDone={handleDone}
+            onSnooze={handleSnooze}
+          />
+        </div>
+      )}
+
+      {/* Spider Character on Web Thread */}
       {threadLength > 0 && (
         <div
           style={{
@@ -317,6 +340,7 @@ export const OverlayApp: React.FC = () => {
             left: characterX,
             top: characterY,
             pointerEvents: 'none',
+            zIndex: 20,
           }}
         >
           <Character
@@ -326,16 +350,6 @@ export const OverlayApp: React.FC = () => {
             scale={characterScale}
             shadowIntensity={shadowIntensity}
             phase={phase}
-          />
-
-          <NoteCard
-            message={message}
-            springProgress={springProgress}
-            opacity={cardOpacity}
-            isMuted={isMuted}
-            onToggleMute={handleToggleMute}
-            onDone={handleDone}
-            onSnooze={handleSnooze}
           />
         </div>
       )}

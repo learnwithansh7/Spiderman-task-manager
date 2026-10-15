@@ -30,8 +30,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({
 
   if (opacity <= 0.01) return null;
 
-  // Spring translation offset and scale
-  const slideOffsetX = (1 - springProgress) * 35;
+  // Spring slide-in: starts 30px to the right and slides into place with natural spring overshoot
+  const slideOffsetX = (1 - springProgress) * 30;
   const cardScale = 0.94 + 0.06 * springProgress;
 
   return (
@@ -39,37 +39,36 @@ export const NoteCard: React.FC<NoteCardProps> = ({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       style={{
-        position: 'absolute',
-        left: MOTION_CONFIG.noteCard.offset.x,
-        top: MOTION_CONFIG.noteCard.offset.y,
-        width: 260,
-        backgroundColor: 'rgba(15, 23, 42, 0.94)',
-        backdropFilter: 'blur(16px)',
-        border: '1px solid rgba(148, 163, 184, 0.22)',
-        borderRadius: '14px',
-        padding: '16px 18px',
-        boxShadow: '0 16px 36px rgba(0, 0, 0, 0.5), 0 2px 8px rgba(0, 0, 0, 0.25)',
+        position: 'relative',
+        width: 300,
+        backgroundColor: '#0f172a',
+        backgroundImage: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
+        border: '1px solid rgba(56, 189, 248, 0.4)',
+        borderRadius: '16px',
+        padding: '18px 20px',
+        boxShadow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(2, 132, 199, 0.25)',
         color: '#f8fafc',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
         transform: `translateX(${slideOffsetX}px) scale(${cardScale})`,
         opacity: opacity,
         pointerEvents: opacity > 0.3 ? 'auto' : 'none',
         userSelect: 'none',
         display: 'flex',
         flexDirection: 'column',
-        gap: '12px',
+        gap: '14px',
+        boxSizing: 'border-box',
       }}
     >
       {/* Header: Label Badge + Mute Button */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span
             style={{
-              width: '7px',
-              height: '7px',
+              width: '8px',
+              height: '8px',
               borderRadius: '50%',
               backgroundColor: '#38bdf8',
-              boxShadow: '0 0 6px #38bdf8',
+              boxShadow: '0 0 8px #38bdf8',
               display: 'inline-block',
             }}
           />
@@ -77,8 +76,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({
             style={{
               fontSize: '11px',
               fontWeight: 700,
-              letterSpacing: '1px',
-              color: '#94a3b8',
+              letterSpacing: '1.2px',
+              color: '#38bdf8',
               textTransform: 'uppercase',
             }}
           >
@@ -91,75 +90,101 @@ export const NoteCard: React.FC<NoteCardProps> = ({
           onClick={onToggleMute}
           title={isMuted ? 'Unmute voice' : 'Mute voice'}
           style={{
-            background: 'none',
-            border: 'none',
-            color: isMuted ? '#64748b' : '#38bdf8',
+            background: isMuted ? 'rgba(51, 65, 85, 0.5)' : 'rgba(2, 132, 199, 0.25)',
+            border: isMuted ? '1px solid #475569' : '1px solid rgba(56, 189, 248, 0.4)',
+            borderRadius: '9999px',
+            color: isMuted ? '#94a3b8' : '#38bdf8',
             cursor: 'pointer',
-            padding: '2px 4px',
-            fontSize: '13px',
-            lineHeight: 1,
+            padding: '3px 9px',
+            fontSize: '12px',
             display: 'flex',
             alignItems: 'center',
-            gap: '3px',
+            gap: '4px',
+            transition: 'all 0.15s ease',
           }}
         >
-          {isMuted ? '🔇' : '🔊'}
-          <span style={{ fontSize: '10px', color: '#64748b' }}>{isMuted ? 'Muted' : 'Voice'}</span>
+          <span>{isMuted ? '🔇' : '🔊'}</span>
+          <span style={{ fontSize: '11px', fontWeight: 600 }}>{isMuted ? 'Muted' : 'Voice'}</span>
         </button>
       </div>
 
       {/* Reminder Message Text */}
       <div
         style={{
-          fontSize: '14px',
+          fontSize: '15px',
           fontWeight: 600,
-          lineHeight: '1.4',
-          color: '#f1f5f9',
+          lineHeight: '1.45',
+          color: '#ffffff',
+          letterSpacing: '-0.2px',
         }}
       >
         {message}
       </div>
 
       {/* Action Buttons: Done and Snooze (5 minutes) */}
-      <div style={{ display: 'flex', gap: '8px', marginTop: '2px' }}>
+      <div style={{ display: 'flex', gap: '10px', marginTop: '2px' }}>
         <button
           onClick={onDone}
           style={{
             flex: 1,
-            padding: '8px 12px',
-            fontSize: '12px',
-            fontWeight: 600,
-            borderRadius: '6px',
+            padding: '10px 14px',
+            fontSize: '13px',
+            fontWeight: 700,
+            borderRadius: '8px',
             border: 'none',
             backgroundColor: '#16a34a',
+            backgroundImage: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
             color: '#ffffff',
             cursor: 'pointer',
-            transition: 'background-color 0.15s ease',
+            boxShadow: '0 4px 12px rgba(22, 163, 74, 0.35)',
+            transition: 'all 0.15s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px',
           }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = '#22c55e')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = '#16a34a')}
+          onMouseOver={(e) => {
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 6px 16px rgba(34, 197, 94, 0.45)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.35)';
+          }}
         >
-          {MOTION_CONFIG.noteCard.doneButtonText}
+          <span>✓</span>
+          <span>{MOTION_CONFIG.noteCard.doneButtonText}</span>
         </button>
 
         <button
           onClick={onSnooze}
           style={{
-            flex: 1.3,
-            padding: '8px 10px',
-            fontSize: '12px',
-            fontWeight: 500,
-            borderRadius: '6px',
-            border: '1px solid rgba(148, 163, 184, 0.25)',
-            backgroundColor: 'rgba(255, 255, 255, 0.06)',
-            color: '#cbd5e1',
+            flex: 1.1,
+            padding: '10px 12px',
+            fontSize: '13px',
+            fontWeight: 600,
+            borderRadius: '8px',
+            border: '1px solid rgba(255, 255, 255, 0.18)',
+            backgroundColor: 'rgba(255, 255, 255, 0.08)',
+            color: '#e2e8f0',
             cursor: 'pointer',
-            transition: 'background-color 0.15s ease',
+            transition: 'all 0.15s ease',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '5px',
           }}
-          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.12)')}
-          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.06)')}
+          onMouseOver={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.14)';
+            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
+            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.18)';
+          }}
         >
-          {MOTION_CONFIG.noteCard.snoozeButtonText}
+          <span>⏱️</span>
+          <span>{MOTION_CONFIG.noteCard.snoozeButtonText}</span>
         </button>
       </div>
     </div>
