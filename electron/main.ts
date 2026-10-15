@@ -349,19 +349,35 @@ function createTray() {
 function registerShortcuts() {
   console.log('[R7 Shortcuts] Registering global shortcuts...');
 
+  // Primary reminder trigger shortcut
   const primary = 'CommandOrControl+Alt+R';
   const primaryResult = globalShortcut.register(primary, () => {
-    console.log(`[R7 Shortcut] Primary shortcut pressed: ${primary}`);
+    console.log(`[R7 Shortcut] Primary reminder shortcut pressed: ${primary}`);
     scheduler?.triggerImmediateTest();
   });
 
+  // Fallback reminder trigger shortcut
   const fallback = 'CommandOrControl+Alt+Shift+R';
   const fallbackResult = globalShortcut.register(fallback, () => {
-    console.log(`[R7 Shortcut] Fallback shortcut pressed: ${fallback}`);
+    console.log(`[R7 Shortcut] Fallback reminder shortcut pressed: ${fallback}`);
     scheduler?.triggerImmediateTest();
   });
 
-  console.log(`[R7 Shortcuts] Primary "${primary}": ${primaryResult}, Fallback "${fallback}": ${fallbackResult}`);
+  // Settings UI toggle shortcut (Ctrl+Alt+S / Ctrl+Shift+S)
+  const settingsShortcut = 'CommandOrControl+Alt+S';
+  const settingsResult = globalShortcut.register(settingsShortcut, () => {
+    console.log(`[R7 Shortcut] Settings shortcut pressed: ${settingsShortcut}`);
+    createOrShowSettingsWindow();
+  });
+
+  const settingsFallback = 'CommandOrControl+Shift+S';
+  const settingsFallbackResult = globalShortcut.register(settingsFallback, () => {
+    console.log(`[R7 Shortcut] Settings fallback shortcut pressed: ${settingsFallback}`);
+    createOrShowSettingsWindow();
+  });
+
+  console.log(`[R7 Shortcuts] Reminder: "${primary}" (${primaryResult}), "${fallback}" (${fallbackResult})`);
+  console.log(`[R7 Shortcuts] Settings UI: "${settingsShortcut}" (${settingsResult}), "${settingsFallback}" (${settingsFallbackResult})`);
 }
 
 // IPC Handlers
@@ -460,6 +476,14 @@ app.whenReady().then(() => {
   // Apply configured startup setting
   const initialSettings = scheduler.getSettings();
   applyLoginItemSettings(initialSettings.startWithWindows);
+
+  // If user launched the app directly (not autostarted in background with --hidden), show the Settings UI
+  const isHiddenLaunch = process.argv.includes('--hidden');
+  const isAutomatedTest = process.argv.some(arg => arg.startsWith('--test-'));
+  if (!isHiddenLaunch && !isAutomatedTest) {
+    console.log('[R7 Startup] Manual user launch detected: opening Settings UI window.');
+    createOrShowSettingsWindow();
+  }
 
   // Automated test runner for R4 verification
   if (process.argv.includes('--test-r4')) {
