@@ -325,6 +325,7 @@ export const OverlayApp: React.FC = () => {
             angleDeg={swayAngleDeg}
             scale={characterScale}
             shadowIntensity={shadowIntensity}
+            phase={phase}
           />
 
           <NoteCard

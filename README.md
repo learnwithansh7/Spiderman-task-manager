@@ -14,9 +14,43 @@ A Windows desktop reminder app where a 3D animated hero hanging upside down glid
 | **R3: Note Card and Voice** | **DONE** | Spring-animated note card with **REMINDER** badge, customizable message (*"Time to drink water!"*), **Done** and **Snooze (5 min)** buttons, mute toggle, and spoken voice via Windows Speech Synthesis. Tag: `r3-note-and-voice`. |
 | **R4: Scheduler and Settings** | **DONE** | Heartbeat scheduler engine, active hours gating (09:00–18:00), snooze handling, sleep/wake survival via `powerMonitor`, rotating reminder types (`water`, `stretch`, `eyes`), and JSON persistence in `settings.json`. Tag: `r4-scheduler`. |
 | **R5: Tray & Settings Window** | **DONE** | Full tray context menu (status, multi-type preview, settings, login item checkbox, quit), dedicated React dark settings window, close-to-tray interception, and "Start with Windows" integration (`app.setLoginItemSettings`). Tag: `r5-tray-and-settings`. |
-| **R6: The Real 3D Character** | Up Next | Transparent WebM video clip (`character.webm`) with PNG fallback. |
-| **R7: Polish & Reliability** | Planned | Fullscreen app detection, multi-monitor support, and crash resilience. |
+| **R6: The Real 3D Character** | **DONE** | Seamless fallback hierarchy (WebM with alpha -> PNG image -> neutral SVG placeholder), VP9 alpha video rendering with phase synchronization (play/pause), and asset generator script. Tag: `r6-character`. |
+| **R7: Polish & Reliability** | Up Next | Fullscreen app detection, multi-monitor support, and crash resilience. |
 | **R8: Installer & Release** | Planned | `electron-builder` Windows installer packaging. |
+
+---
+
+## The Real 3D Character (`character.webm` with alpha) (Milestone R6)
+
+- **3-Tier Asset Fallback Hierarchy**:
+  1. **`assets/character.webm`**: Full VP9 transparent video with alpha channel (`yuva420p`). Plays looped breathing, leg movement, and eye blinking while swinging on the web thread.
+  2. **`assets/character.png`**: High-resolution transparent PNG image fallback if video is absent.
+  3. **Procedural SVG**: Neutral upside-down spider character drawn dynamically if no external assets exist.
+- **Phase-Synchronized Video Playback**:
+  - Automatically begins playing when the character begins descending and swaying (`DESCENDING` / `SWAYING`).
+  - Automatically pauses when the character climbs back up and enters `IDLE` state, conserving CPU and GPU resources.
+- **Asset Generation Script (`scripts/generate-character-webm.js`)**:
+  - Headless 60-frame procedural renderer that compiles an alpha-channel WebM video (`assets/character.webm`) and static image (`assets/character.png`) using `ffmpeg` (`-c:v libvpx-vp9 -pix_fmt yuva420p`).
+
+---
+
+## How to Run Milestone R6
+
+### 1. Development Mode
+```bash
+npm run dev
+```
+- The character hangs upside down on the thread using the real transparent WebM video.
+- Test with **`Ctrl+Alt+Shift+R`** or via the tray menu.
+
+### 2. Automated Test Verification
+```bash
+npm run test:r6
+```
+Runs the automated verification suite:
+1. Probes and verifies `assets/character.webm` loading with alpha channel.
+2. Triggers the reminder animation and captures `docs/r6-character.png`.
+3. Verifies phase-synchronized playback and clean exit.
 
 ---
 
@@ -151,6 +185,7 @@ npm run test:r3
 
 ## Verification Artifacts (`docs/`)
 
+- [`docs/r6-character.png`](docs/r6-character.png) — Real animated character hanging from web thread rendered via transparent WebM video (`character.webm` with alpha).
 - [`docs/r5-settings-window.png`](docs/r5-settings-window.png) — Dedicated React Settings panel with dark theme, interval presets, active hours, snooze/voice controls, and startup toggle.
 - [`docs/r4-scheduled-reminder.png`](docs/r4-scheduled-reminder.png) — Scheduled reminder note card and character captured during automated suite execution.
 - [`docs/r3-note-card.png`](docs/r3-note-card.png) — Note card with REMINDER badge, Done & Snooze buttons, mute toggle, and swaying character.

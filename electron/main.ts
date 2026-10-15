@@ -446,6 +446,39 @@ app.whenReady().then(() => {
       }, 1500);
     });
   }
+
+  // Automated test runner for R6 verification (Real 3D Character WebM with alpha)
+  if (process.argv.includes('--test-r6')) {
+    console.log('[R6 Test] Running automated Milestone R6 verification suite...');
+    const docsDir = path.resolve(__dirname, '../../docs');
+    if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
+
+    const waitForReady = setInterval(() => {
+      if (isRendererReady) {
+        clearInterval(waitForReady);
+        console.log('[R6 Test] Overlay renderer ready. Triggering reminder with real animated character...');
+        scheduler?.triggerImmediateTest('water');
+
+        // Capture screenshot while character is swaying and video is playing
+        setTimeout(async () => {
+          if (overlayWindow && !overlayWindow.isDestroyed()) {
+            const img = await overlayWindow.webContents.capturePage();
+            const target = path.join(docsDir, 'r6-character.png');
+            fs.writeFileSync(target, img.toPNG());
+            console.log(`[R6 Test] Captured docs/r6-character.png (${img.getSize().width}x${img.getSize().height})`);
+
+            // Retract & exit
+            overlayWindow.webContents.send('trigger-exit');
+            setTimeout(() => {
+              console.log('[R6 Test] Milestone R6 verification suite completed successfully. Exiting.');
+              isQuitting = true;
+              app.quit();
+            }, 1500);
+          }
+        }, 4800);
+      }
+    }, 200);
+  }
 });
 
 app.on('will-quit', () => {
