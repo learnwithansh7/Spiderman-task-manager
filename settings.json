@@ -1,0 +1,30 @@
+{
+  "intervalMinutes": 45,
+  "activeHours": {
+    "enabled": true,
+    "start": "09:00",
+    "end": "18:00"
+  },
+  "snoozeDurationMinutes": 5,
+  "voiceMuted": false,
+  "reminderTypes": {
+    "water": {
+      "enabled": true,
+      "message": "Time to drink water! Stay hydrated.",
+      "voiceText": "Time to drink water! Stay hydrated."
+    },
+    "stretch": {
+      "enabled": true,
+      "message": "Time to stretch your back and shoulders!",
+      "voiceText": "Time to stretch your back and shoulders!"
+    },
+    "eyes": {
+      "enabled": true,
+      "message": "Rest your eyes! Look at something 20 feet away.",
+      "voiceText": "Rest your eyes! Look away from the screen."
+    }
+  },
+  "lastTriggerTimestamp": 0,
+  "nextTriggerTimestamp": 1792046792720,
+  "lastReminderType": "water"
+}

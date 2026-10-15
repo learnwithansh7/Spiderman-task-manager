@@ -33,6 +33,13 @@ export const OverlayApp: React.FC = () => {
   const lastTimeRef = useRef<number>(0);
   const voicePlayedRef = useRef<boolean>(false);
 
+  const threadLengthRef = useRef<number>(0);
+  const windowHeightRef = useRef<number>(window.innerHeight);
+
+  useEffect(() => {
+    windowHeightRef.current = windowSize.height;
+  }, [windowSize.height]);
+
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
@@ -65,10 +72,10 @@ export const OverlayApp: React.FC = () => {
       autoExitTimerRef.current = null;
     }
 
-    retractStartLengthRef.current = threadLength || (windowSize.height * MOTION_CONFIG.geometry.descentDepthPercent);
+    retractStartLengthRef.current = threadLengthRef.current || (windowHeightRef.current * MOTION_CONFIG.geometry.descentDepthPercent);
     setPhase('EXITING');
     phaseStartTimeRef.current = performance.now();
-  }, [threadLength, windowSize.height]);
+  }, []);
 
   // Handle Done button click
   const handleDone = useCallback(() => {
@@ -107,6 +114,7 @@ export const OverlayApp: React.FC = () => {
 
     console.log(`[R3 Motion] Starting descent animation for: "${reminderMsg}"`);
     setThreadLength(0);
+    threadLengthRef.current = 0;
     setSwayAngleDeg(0);
     setCharacterScale(MOTION_CONFIG.physics.initialScale);
     setShadowIntensity(0);
@@ -120,7 +128,7 @@ export const OverlayApp: React.FC = () => {
     phaseStartTimeRef.current = performance.now();
   }, []);
 
-  // Listen for trigger events from main process
+  // Listen for trigger events from main process (mount once)
   useEffect(() => {
     console.log('[Renderer] OverlayApp mounted. Notifying main process (renderer-ready).');
     window.electronAPI?.send('renderer-ready');
@@ -159,7 +167,9 @@ export const OverlayApp: React.FC = () => {
         const eased = easeOutCubic(progress);
 
         // Thread lengthens as character descends
-        setThreadLength(targetLength * eased);
+        const currentDescentL = targetLength * eased;
+        setThreadLength(currentDescentL);
+        threadLengthRef.current = currentDescentL;
 
         // Scale grows from 0.8 to 1.0 (coming toward you effect)
         const scale = MOTION_CONFIG.physics.initialScale +
@@ -206,6 +216,7 @@ export const OverlayApp: React.FC = () => {
         const angleDeg = (angleRad * 180) / Math.PI;
 
         setThreadLength(targetLength);
+        threadLengthRef.current = targetLength;
         setSwayAngleDeg(angleDeg);
         setCharacterScale(MOTION_CONFIG.physics.targetScale);
         setShadowIntensity(1);
@@ -227,6 +238,7 @@ export const OverlayApp: React.FC = () => {
         const currentL = Math.max(0, startL * (1 - eased));
 
         setThreadLength(currentL);
+        threadLengthRef.current = currentL;
         // Angle dampens to zero rapidly while climbing
         setSwayAngleDeg((prev) => prev * (1 - progress));
         setCharacterScale(MOTION_CONFIG.physics.targetScale - 0.2 * eased);
@@ -239,6 +251,7 @@ export const OverlayApp: React.FC = () => {
           console.log('[R3 Motion] Exit complete. Resetting to IDLE and hiding window.');
           setPhase('IDLE');
           setThreadLength(0);
+          threadLengthRef.current = 0;
           setSwayAngleDeg(0);
           setCardOpacity(0);
           setSpringProgress(0);
