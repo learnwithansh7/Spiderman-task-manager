@@ -1,7 +1,6 @@
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
-import readline from 'readline';
 import {
   WakeWordEngine,
   WakeWordDetectedCallback,
@@ -19,6 +18,36 @@ export interface VoskEngineOptions {
   deviceId?: number | null;
 }
 
+/**
+ * Resolves the absolute project root directory by traversing upwards until package.json is found.
+ */
+export function getProjectRoot(): string {
+  let dir = __dirname;
+  while (dir && dir !== path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, 'package.json'))) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+  return process.cwd();
+}
+
+/**
+ * Force kills any stale python.exe processes running voice_helper.py to ensure single helper instance.
+ */
+export function killStaleVoiceHelpers(): void {
+  try {
+    if (process.platform === 'win32') {
+      execSync(
+        'powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name=\'python.exe\'\\" | Where-Object { $_.CommandLine -like \'*voice_helper.py*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"',
+        { stdio: 'ignore', timeout: 5000 }
+      );
+    }
+  } catch {
+    // Ignore if no process was found or command fails
+  }
+}
+
 export class VoskHelperEngine implements WakeWordEngine {
   private process: ChildProcess | null = null;
   private detectedCallbacks: WakeWordDetectedCallback[] = [];
@@ -31,6 +60,7 @@ export class VoskHelperEngine implements WakeWordEngine {
   private retryCount = 0;
   private readonly maxRetries = 3;
   private retryTimeout: NodeJS.Timeout | null = null;
+  private pauseWatchdog: NodeJS.Timeout | null = null;
 
   private modelName: string;
   private threshold: number;
@@ -38,14 +68,15 @@ export class VoskHelperEngine implements WakeWordEngine {
   private deviceId: number | null;
 
   constructor(options: VoskEngineOptions = {}) {
-    this.modelName = options.modelName || 'vosk-model-small-en-in-0.4';
+    this.modelName = options.modelName || 'vosk-model-small-en-us-0.15';
     this.threshold = options.threshold !== undefined ? options.threshold : 0.70;
     this.alsoSpider = !!options.alsoSpider;
     this.deviceId = options.deviceId !== undefined ? options.deviceId : null;
   }
 
   public getInstalledModels(): string[] {
-    const modelsDir = path.resolve(__dirname, '../../models/vosk');
+    const projectRoot = getProjectRoot();
+    const modelsDir = path.join(projectRoot, 'models', 'vosk');
     if (!fs.existsSync(modelsDir)) return [];
     try {
       return fs.readdirSync(modelsDir, { withFileTypes: true })
@@ -76,12 +107,20 @@ export class VoskHelperEngine implements WakeWordEngine {
     return this.isRunning && !this.isPaused;
   }
 
+  public isPausedState(): boolean {
+    return this.isPaused;
+  }
+
+  public isRunningState(): boolean {
+    return this.isRunning;
+  }
+
   private notifyState(listening: boolean): void {
     for (const cb of this.stateCallbacks) {
       try {
         cb(listening);
       } catch (err) {
-        console.error('[VoskEngine] Error in state callback:', err);
+        console.error('[Voice] Error in state callback:', err);
       }
     }
   }
@@ -91,7 +130,7 @@ export class VoskHelperEngine implements WakeWordEngine {
       try {
         cb({ code, message });
       } catch (err) {
-        console.error('[VoskEngine] Error in error callback:', err);
+        console.error('[Voice] Error in error callback:', err);
       }
     }
   }
@@ -105,75 +144,102 @@ export class VoskHelperEngine implements WakeWordEngine {
   private async spawnHelper(): Promise<void> {
     if (this.process) return;
 
-    // Resolve python from venv
-    const venvPython = path.resolve(__dirname, '../../tools/voice/.venv/Scripts/python.exe');
-    const helperScript = path.resolve(__dirname, '../../tools/voice/voice_helper.py');
-    const modelsDir = path.resolve(__dirname, '../../models/vosk');
+    // Ensure only ONE helper process runs
+    killStaleVoiceHelpers();
+
+    const projectRoot = getProjectRoot();
+    const venvPython = path.join(projectRoot, 'tools', 'voice', '.venv', 'Scripts', 'python.exe');
+    const helperScript = path.join(projectRoot, 'tools', 'voice', 'voice_helper.py');
+    const modelsDir = path.join(projectRoot, 'models', 'vosk');
+    const absoluteModelPath = path.join(modelsDir, this.modelName);
 
     if (!fs.existsSync(venvPython)) {
-      this.notifyError('OTHER', 'Python virtual environment not found at tools/voice/.venv');
+      console.warn(`[Voice] Python venv not found at: ${venvPython}`);
+      this.notifyError('OTHER', `Python virtual environment not found at ${venvPython}`);
+      this.isRunning = false;
       return;
     }
 
     if (!fs.existsSync(helperScript)) {
-      this.notifyError('OTHER', 'Helper script not found at tools/voice/voice_helper.py');
+      console.warn(`[Voice] Helper script not found at: ${helperScript}`);
+      this.notifyError('OTHER', `Helper script not found at ${helperScript}`);
+      this.isRunning = false;
       return;
     }
 
-    // Resolve model path
-    let modelPath = path.join(modelsDir, this.modelName);
-    if (!fs.existsSync(modelPath)) {
-      // Fallback to any installed model
-      const installed = this.getInstalledModels();
-      if (installed.length > 0) {
-        this.modelName = installed[0];
-        modelPath = path.join(modelsDir, this.modelName);
-      } else {
-        this.notifyError('MODEL_MISSING', `Vosk model not found. Please install a model into models/vosk/`);
-        return;
-      }
+    if (!fs.existsSync(absoluteModelPath)) {
+      console.warn(`[Voice] Model folder does not exist: ${absoluteModelPath}`);
+      this.notifyError('MODEL_MISSING', 'Voice model not found');
+      this.isRunning = false;
+      return;
     }
 
-    const args = [
+    const args: string[] = [
+      '-u',
       helperScript,
-      '--model', modelPath,
-      '--threshold', this.threshold.toString(),
+      '--model',
+      absoluteModelPath,
     ];
+
+    if (this.threshold !== undefined && this.threshold !== null) {
+      args.push('--threshold', this.threshold.toString());
+    }
 
     if (this.alsoSpider) {
       args.push('--also-spider');
     }
 
-    if (this.deviceId !== null && this.deviceId !== undefined) {
+    if (this.deviceId !== null && this.deviceId !== undefined && String(this.deviceId).trim() !== '' && this.deviceId !== -1) {
       args.push('--device', this.deviceId.toString());
     }
 
-    console.log(`[VoskEngine] Spawning helper: ${venvPython} ${args.join(' ')}`);
+    const fullCmd = `"${venvPython}" ${args.map((a) => (a.includes(' ') ? `"${a}"` : a)).join(' ')}`;
+    console.log(`[Voice] Starting helper with command: ${fullCmd}`);
+
+    const env = {
+      ...process.env,
+      PYTHONUNBUFFERED: '1',
+      PYTHONIOENCODING: 'utf-8',
+    };
 
     try {
       this.process = spawn(venvPython, args, {
+        cwd: projectRoot,
+        env,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,
       });
 
-      const rl = readline.createInterface({
-        input: this.process.stdout!,
-        terminal: false,
+      let stdoutBuffer = '';
+
+      this.process.stdout!.on('data', (chunk: Buffer) => {
+        stdoutBuffer += chunk.toString('utf-8');
+        const lines = stdoutBuffer.split(/\r?\n/);
+        stdoutBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          this.handleHelperOutput(trimmed);
+        }
       });
 
-      rl.on('line', (line) => {
-        this.handleHelperOutput(line);
+      this.process.stdout!.on('end', () => {
+        if (stdoutBuffer.trim()) {
+          this.handleHelperOutput(stdoutBuffer.trim());
+          stdoutBuffer = '';
+        }
       });
 
-      this.process.stderr?.on('data', (data) => {
-        const text = data.toString().trim();
+      this.process.stderr?.on('data', (chunk: Buffer) => {
+        const text = chunk.toString('utf-8').trim();
         if (text) {
-          console.warn(`[VoskEngine stderr] ${text}`);
+          console.warn(`[Voice] stderr: ${text}`);
         }
       });
 
       this.process.on('close', (code) => {
-        console.log(`[VoskEngine] Process exited with code ${code}`);
+        console.log(`[Voice] Helper process exited with code ${code}`);
         this.process = null;
         this.notifyState(false);
 
@@ -182,85 +248,105 @@ export class VoskHelperEngine implements WakeWordEngine {
           if (this.retryCount < this.maxRetries) {
             this.retryCount++;
             const backoffMs = this.retryCount * 1500;
-            console.log(`[VoskEngine] Helper crashed. Retry ${this.retryCount}/${this.maxRetries} in ${backoffMs}ms...`);
+            console.log(`[Voice] Helper crashed/exited. Retry ${this.retryCount}/${this.maxRetries} in ${backoffMs}ms...`);
             this.retryTimeout = setTimeout(() => {
               if (this.isRunning) {
                 this.spawnHelper();
               }
             }, backoffMs);
           } else {
-            console.error('[VoskEngine] Helper crashed repeatedly. Giving up.');
+            console.error('[Voice] Helper crashed repeatedly. Giving up.');
             this.notifyError('CRASH_LOOP', 'Voice activation helper stopped working after multiple attempts.');
           }
         }
       });
 
       this.process.on('error', (err) => {
-        console.error('[VoskEngine] Failed to spawn helper process:', err);
+        console.error('[Voice] Failed to spawn helper process:', err);
         this.notifyError('OTHER', `Failed to launch voice process: ${err.message}`);
         this.process = null;
       });
-
     } catch (err: any) {
-      console.error('[VoskEngine] Exception launching helper:', err);
+      console.error('[Voice] Exception launching helper:', err);
       this.notifyError('OTHER', err?.message || 'Unknown spawn error');
     }
   }
 
   private handleHelperOutput(line: string): void {
-    const trimmed = line.trim();
-    if (!trimmed) return;
-
     try {
-      const msg = JSON.parse(trimmed);
+      const msg = JSON.parse(line);
+      console.log(`[Voice] Received message: ${JSON.stringify(msg)}`);
+
       switch (msg.type) {
-        case 'ready':
-          console.log('[VoskEngine] Helper is READY and listening.');
-          this.retryCount = 0; // reset retry counter on success
-          this.notifyState(true);
-          break;
-
-        case 'detected':
-          console.log(`[VoskEngine] Wake word detected: "${msg.phrase}" (conf: ${msg.conf})`);
-          for (const cb of this.detectedCallbacks) {
-            try {
-              cb(msg.phrase, msg.conf);
-            } catch (err) {
-              console.error('[VoskEngine] Error in detected callback:', err);
-            }
-          }
-          break;
-
         case 'devices':
+          console.log(`[Voice] Microphone list received: ${msg.list?.length || 0} devices.`);
           for (const cb of this.devicesCallbacks) {
             try {
               cb(msg.list as AudioDevice[]);
             } catch (err) {
-              console.error('[VoskEngine] Error in devices callback:', err);
+              console.error('[Voice] Error in devices callback:', err);
+            }
+          }
+          break;
+
+        case 'ready':
+          console.log('[Voice] Helper is READY and listening.');
+          this.retryCount = 0;
+          this.notifyState(true);
+          break;
+
+        case 'detected':
+          for (const cb of this.detectedCallbacks) {
+            try {
+              cb(msg.phrase, msg.conf);
+            } catch (err) {
+              console.error('[Voice] Error in detected callback:', err);
             }
           }
           break;
 
         case 'error':
-          console.warn(`[VoskEngine error event] ${msg.code}: ${msg.message}`);
+          console.warn(`[Voice] Helper error reported: [${msg.code}] ${msg.message}`);
           this.notifyError(msg.code, msg.message);
+          break;
+
+        default:
+          console.log(`[Voice] Other message from helper: ${line}`);
           break;
       }
     } catch {
-      // Non-JSON output (ignore or debug)
+      console.warn(`[Voice] Non-JSON stdout from helper: ${line}`);
     }
   }
 
   public pause(): void {
+    if (this.isPaused) return;
     this.isPaused = true;
     this.notifyState(false);
     this.sendCommand('pause');
+    console.log('[Voice] Sent "pause" to helper.');
+
+    // 30-second watchdog to auto-resume if resume is not called
+    if (this.pauseWatchdog) {
+      clearTimeout(this.pauseWatchdog);
+    }
+    this.pauseWatchdog = setTimeout(() => {
+      if (this.isPaused) {
+        console.warn('[Voice] Watchdog timeout (30s) reached while paused. Automatically resuming helper.');
+        this.resume();
+      }
+    }, 30000);
   }
 
   public resume(): void {
+    if (this.pauseWatchdog) {
+      clearTimeout(this.pauseWatchdog);
+      this.pauseWatchdog = null;
+    }
     this.isPaused = false;
     this.notifyState(true);
     this.sendCommand('resume');
+    console.log('[Voice] Sent "resume" to helper.');
   }
 
   public setSensitivity(threshold: number): void {
@@ -270,7 +356,7 @@ export class VoskHelperEngine implements WakeWordEngine {
 
   public setDevice(deviceIndex: number | null): void {
     this.deviceId = deviceIndex;
-    if (deviceIndex !== null && deviceIndex !== undefined) {
+    if (deviceIndex !== null && deviceIndex !== undefined && deviceIndex !== -1) {
       this.sendCommand(`device ${deviceIndex}`);
     } else {
       this.sendCommand('device default');
@@ -304,7 +390,7 @@ export class VoskHelperEngine implements WakeWordEngine {
       try {
         this.process.stdin.write(cmd + '\n');
       } catch (err) {
-        console.warn('[VoskEngine] Failed to write command to stdin:', err);
+        console.warn('[Voice] Failed to write command to stdin:', err);
       }
     }
   }
@@ -314,6 +400,10 @@ export class VoskHelperEngine implements WakeWordEngine {
     if (this.retryTimeout) {
       clearTimeout(this.retryTimeout);
       this.retryTimeout = null;
+    }
+    if (this.pauseWatchdog) {
+      clearTimeout(this.pauseWatchdog);
+      this.pauseWatchdog = null;
     }
     this.notifyState(false);
 
@@ -325,14 +415,16 @@ export class VoskHelperEngine implements WakeWordEngine {
         proc.stdin?.end();
       } catch {}
 
-      // Force kill after 1 second if still alive
       setTimeout(() => {
         try {
           if (!proc.killed) {
             proc.kill();
           }
         } catch {}
-      }, 1000);
+        killStaleVoiceHelpers();
+      }, 500);
+    } else {
+      killStaleVoiceHelpers();
     }
   }
 }

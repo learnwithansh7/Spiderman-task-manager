@@ -86,7 +86,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   voiceDeviceId: null,
   voiceSensitivity: 0.70,
   voiceAlsoSpider: false,                 // OFF by default
-  voiceModelName: 'vosk-model-small-en-in-0.4',
+  voiceModelName: 'vosk-model-small-en-us-0.15',
 };
 
 export function loadSettings(): AppSettings {

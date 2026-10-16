@@ -4,7 +4,7 @@ import fs from 'fs';
 import { ReminderScheduler } from './scheduler';
 import { ReminderTypeKey, AppSettings, loadSettings, saveSettings } from './settings';
 import { isForegroundAppFullscreen } from './system';
-import { VoskHelperEngine } from './voice/voskEngine';
+import { VoskHelperEngine, killStaleVoiceHelpers } from './voice/voskEngine';
 import { AudioDevice, WakeWordError } from './voice/types';
 
 // Crash Resilience: Global Unhandled Exceptions and Rejections
@@ -452,28 +452,40 @@ function setupVoiceEngine(settings: AppSettings) {
   });
 
   voiceEngine.onDetected((phrase, conf) => {
-    console.log(`[Main] Voice trigger detected: "${phrase}" (conf: ${conf})`);
+    console.log(`[Voice] Detected phrase: "${phrase}" (conf: ${conf})`);
 
-    // Guard: ignore if character is currently on screen or was active within 3s
-    const now = Date.now();
+    const currentSettings = scheduler ? scheduler.getSettings() : loadSettings();
+
+    if (!currentSettings.voiceActivationEnabled) {
+      console.log('[Voice] Decision: Ignored detection. Reason: voice off');
+      return;
+    }
+
+    if (voiceEngine?.isPausedState()) {
+      console.log('[Voice] Decision: Ignored detection. Reason: paused');
+      return;
+    }
+
     if (isAnimationPlaying) {
-      console.log('[Main] Character is active. Ignoring detection.');
-      return;
-    }
-    if (now - lastSequenceEndTime < POST_SEQUENCE_COOLDOWN_MS) {
-      console.log('[Main] Within 3s post-sequence cooldown. Ignoring detection.');
+      console.log('[Voice] Decision: Ignored detection. Reason: sequence playing');
       return;
     }
 
-    // Trigger summon sequence with a friendly greeting
+    const now = Date.now();
+    if (now - lastSequenceEndTime < POST_SEQUENCE_COOLDOWN_MS) {
+      console.log('[Voice] Decision: Ignored detection. Reason: cooldown');
+      return;
+    }
+
+    console.log('[Voice] Decision: Started the sequence');
     const greeting = 'Hey! Spider-Man here with your reminder.';
     const type = scheduler ? scheduler.getNextReminderInfo().type : 'water';
-    const config = settings.reminderTypes[type];
+    const config = currentSettings.reminderTypes[type];
     triggerReminderAnimation(`${greeting} ${config.message}`, `${greeting} ${config.voiceText}`);
   });
 
   voiceEngine.onDevices((devices) => {
-    console.log(`[Main] Received ${devices.length} audio input devices from Vosk helper.`);
+    console.log(`[Voice] Received ${devices.length} audio input devices from helper.`);
     availableAudioDevices = devices;
   });
 
@@ -482,16 +494,16 @@ function setupVoiceEngine(settings: AppSettings) {
   });
 
   voiceEngine.onError((err: WakeWordError) => {
-    console.warn(`[Main] WakeWord Error: [${err.code}] ${err.message}`);
+    console.warn(`[Voice] Error received: [${err.code}] ${err.message}`);
     switch (err.code) {
+      case 'MODEL_MISSING':
+        showPlainNotification('SpiderReminder', 'Voice model not found');
+        break;
       case 'NO_MIC':
         showPlainNotification('Microphone Not Found', 'SpiderReminder could not find any microphone. Please connect a microphone.');
         break;
       case 'MIC_BLOCKED':
         showPlainNotification('Microphone Blocked', 'Microphone access is blocked by Windows privacy settings. Enable it in Windows Settings → Privacy.');
-        break;
-      case 'MODEL_MISSING':
-        showPlainNotification('Voice Model Missing', 'Vosk speech model is missing from models/vosk/.');
         break;
       case 'CRASH_LOOP':
         showPlainNotification('Voice Activation Stopped', 'The voice helper stopped working after multiple recovery attempts.');
@@ -502,10 +514,10 @@ function setupVoiceEngine(settings: AppSettings) {
   });
 
   if (settings.voiceActivationEnabled) {
-    console.log('[Main] Voice activation is ENABLED in settings. Starting Vosk helper...');
+    console.log('[Voice] Voice activation is ENABLED in settings. Starting Vosk helper...');
     voiceEngine.start();
   } else {
-    console.log('[Main] Voice activation is OFF by default.');
+    console.log('[Voice] Voice activation is OFF by default.');
   }
 }
 
@@ -576,7 +588,7 @@ ipcMain.handle('save-settings', (_event, newSettings: AppSettings) => {
     });
 
     if (newSettings.voiceActivationEnabled) {
-      if (!voiceEngine.isListening()) {
+      if (!voiceEngine.isRunningState()) {
         voiceEngine.start();
       }
     } else {
@@ -645,8 +657,13 @@ app.whenReady().then(() => {
 app.on('will-quit', () => {
   console.log('[R7 Lifecycle] will-quit: stopping voice engine and scheduler.');
   voiceEngine?.stop();
+  killStaleVoiceHelpers();
   scheduler?.stop();
   globalShortcut.unregisterAll();
+});
+
+process.on('exit', () => {
+  killStaleVoiceHelpers();
 });
 
 app.on('window-all-closed', () => {
