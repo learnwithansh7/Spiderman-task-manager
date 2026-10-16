@@ -6,6 +6,7 @@ export const SettingsApp: React.FC = () => {
   const [newTaskTitle, setNewTaskTitle] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [addError, setAddError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Fetch tasks on mount and subscribe to live changes
@@ -17,9 +18,11 @@ export const SettingsApp: React.FC = () => {
           if (Array.isArray(list)) {
             setTasks(list);
           }
+        } else {
+          console.error('[UI] window.tasksApi.list not available on mount');
         }
-      } catch (err) {
-        console.error('[Settings] Error loading tasks:', err);
+      } catch (err: any) {
+        console.error('[UI] Error loading tasks:', err?.message || err);
       } finally {
         setLoading(false);
       }
@@ -44,17 +47,33 @@ export const SettingsApp: React.FC = () => {
   const handleAddTask = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const title = newTaskTitle.trim();
-    if (!title || isSubmitting) return;
+    console.log(`[UI] Add clicked: title length=${title.length}, isSubmitting=${isSubmitting}`);
+    if (!title || isSubmitting) {
+      console.log('[UI] Add skipped: empty title or already submitting');
+      return;
+    }
 
+    setAddError(null);
     setIsSubmitting(true);
     try {
-      if (window.tasksApi?.add) {
-        await window.tasksApi.add(title);
-        setNewTaskTitle('');
-        inputRef.current?.focus();
+      console.log(`[UI] typeof window.tasksApi=${typeof window.tasksApi}, typeof window.tasksApi?.add=${typeof window.tasksApi?.add}`);
+      if (!window.tasksApi?.add) {
+        throw new Error('Task API not available — preload may not be loaded');
       }
-    } catch (err) {
-      console.error('[Settings] Failed to add task:', err);
+      console.log('[Tasks] Calling tasks:add...');
+      const result = await window.tasksApi.add(title);
+      console.log(`[Tasks] tasks:add succeeded: id=${result?.id}, title_length=${result?.title?.length}`);
+      setNewTaskTitle('');
+      inputRef.current?.focus();
+      // Safety net: re-fetch list in case onChanged is delayed or missed
+      const list = await window.tasksApi.list();
+      if (Array.isArray(list)) {
+        setTasks(list);
+      }
+    } catch (err: any) {
+      const msg = err?.message || String(err);
+      console.error('[UI] Failed to add task:', msg);
+      setAddError(`Could not save the task: ${msg}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -63,21 +82,23 @@ export const SettingsApp: React.FC = () => {
   const handleDeleteTask = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      if (window.tasksApi?.remove) {
-        await window.tasksApi.remove(id);
+      if (!window.tasksApi?.remove) {
+        console.error('[UI] tasks:remove — tasksApi not available');
+        return;
       }
-    } catch (err) {
-      console.error('[Settings] Failed to remove task:', err);
+      console.log(`[Tasks] Calling tasks:remove id=${id}`);
+      await window.tasksApi.remove(id);
+    } catch (err: any) {
+      console.error('[UI] Failed to remove task:', err?.message || err);
     }
   };
 
   const handleToggleTask = async (id: string) => {
     try {
-      if (window.tasksApi?.toggle) {
-        await window.tasksApi.toggle(id);
-      }
-    } catch (err) {
-      console.error('[Settings] Failed to toggle task:', err);
+      if (!window.tasksApi?.toggle) return;
+      await window.tasksApi.toggle(id);
+    } catch (err: any) {
+      console.error('[UI] Failed to toggle task:', err?.message || err);
     }
   };
 
@@ -188,58 +209,74 @@ export const SettingsApp: React.FC = () => {
         }}
       >
         {/* ADD TASK INPUT & BUTTON */}
-        <form
-          onSubmit={handleAddTask}
-          style={{
-            display: 'flex',
-            gap: 10,
-            alignItems: 'center',
-          }}
-        >
-          <input
-            ref={inputRef}
-            type="text"
-            placeholder="Add a task..."
-            maxLength={200}
-            value={newTaskTitle}
-            onChange={(e) => setNewTaskTitle(e.target.value)}
-            disabled={isSubmitting}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <form
+            onSubmit={handleAddTask}
             style={{
-              flex: 1,
-              backgroundColor: '#111827',
-              border: '1px solid #334155',
-              borderRadius: 8,
-              color: '#f8fafc',
-              padding: '10px 14px',
-              fontSize: 14,
-              outline: 'none',
-              transition: 'border-color 0.15s ease',
-              boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.3)',
-            }}
-            onFocus={(e) => (e.target.style.borderColor = '#38bdf8')}
-            onBlur={(e) => (e.target.style.borderColor = '#334155')}
-          />
-          <button
-            type="submit"
-            disabled={!newTaskTitle.trim() || isSubmitting}
-            style={{
-              backgroundColor: newTaskTitle.trim() ? '#0284c7' : '#1e293b',
-              backgroundImage: newTaskTitle.trim() ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'none',
-              color: newTaskTitle.trim() ? '#ffffff' : '#64748b',
-              border: newTaskTitle.trim() ? '1px solid #38bdf8' : '1px solid #334155',
-              borderRadius: 8,
-              padding: '10px 20px',
-              fontSize: 14,
-              fontWeight: 700,
-              cursor: newTaskTitle.trim() && !isSubmitting ? 'pointer' : 'default',
-              boxShadow: newTaskTitle.trim() ? '0 3px 10px rgba(2, 132, 199, 0.4)' : 'none',
-              transition: 'all 0.15s ease',
-              flexShrink: 0,
+              display: 'flex',
+              gap: 10,
+              alignItems: 'center',
             }}
           >
-            Add
-          </button>
-        </form>
+            <input
+              ref={inputRef}
+              type="text"
+              placeholder="Add a task..."
+              maxLength={200}
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              disabled={isSubmitting}
+              style={{
+                flex: 1,
+                backgroundColor: '#111827',
+                border: addError ? '1px solid #ef4444' : '1px solid #334155',
+                borderRadius: 8,
+                color: '#f8fafc',
+                padding: '10px 14px',
+                fontSize: 14,
+                outline: 'none',
+                transition: 'border-color 0.15s ease',
+                boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.3)',
+                userSelect: 'text',
+              }}
+              onFocus={(e) => { e.target.style.borderColor = addError ? '#ef4444' : '#38bdf8'; }}
+              onBlur={(e) => { e.target.style.borderColor = addError ? '#ef4444' : '#334155'; }}
+            />
+            <button
+              type="submit"
+              disabled={!newTaskTitle.trim() || isSubmitting}
+              style={{
+                backgroundColor: newTaskTitle.trim() ? '#0284c7' : '#1e293b',
+                backgroundImage: newTaskTitle.trim() ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'none',
+                color: newTaskTitle.trim() ? '#ffffff' : '#64748b',
+                border: newTaskTitle.trim() ? '1px solid #38bdf8' : '1px solid #334155',
+                borderRadius: 8,
+                padding: '10px 20px',
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: newTaskTitle.trim() && !isSubmitting ? 'pointer' : 'default',
+                boxShadow: newTaskTitle.trim() ? '0 3px 10px rgba(2, 132, 199, 0.4)' : 'none',
+                transition: 'all 0.15s ease',
+                flexShrink: 0,
+              }}
+            >
+              Add
+            </button>
+          </form>
+          {/* Visible error message under the input */}
+          {addError && (
+            <div
+              style={{
+                color: '#ef4444',
+                fontSize: 12,
+                padding: '4px 2px',
+                lineHeight: '1.4',
+              }}
+            >
+              {addError}
+            </div>
+          )}
+        </div>
 
         {/* TASK LIST */}
         <div
