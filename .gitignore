@@ -3,3 +3,5 @@ dist/
 release/
 .DS_Store
 Thumbs.db
+tools/voice/.venv/
+models/

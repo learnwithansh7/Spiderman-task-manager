@@ -180,9 +180,8 @@ export const OverlayApp: React.FC = () => {
         // Soft shadow intensity increases
         setShadowIntensity(eased);
 
-        // Gentle descent swing
-        const descendSway = Math.sin(progress * Math.PI) * 1.5;
-        setSwayAngleDeg(descendSway);
+        // Stationary vertical descent (no side-to-side swinging)
+        setSwayAngleDeg(0);
 
         // As character nears the bottom (>75%), begin spring reveal of note card
         if (progress > 0.75) {

@@ -36,27 +36,27 @@ export interface MotionConfig {
 export const MOTION_CONFIG: MotionConfig = {
   geometry: {
     anchorXPercent: 0.82,              // 82% screen width
-    descentDepthPercent: 0.36,         // descends to ~36% screen height
+    descentDepthPercent: 0.14,         // short web strand (~14% screen height) matching reference
     threadWidth: 2.0,                  // clean thin web line
     threadColor: 'rgba(240, 244, 250, 0.9)',
-    characterSize: { width: 220, height: 280 },
+    characterSize: { width: 220, height: 340 },
     characterPivot: { x: 0.5, y: 0.0 }, // anchored at top/feet of upside down Spider-Man
   },
   timing: {
-    descentDurationMs: 4000,           // ~4 seconds slow ease-out descent
-    swayDurationMs: 4000,              // ~4 seconds damped pendulum settling
+    descentDurationMs: 2500,           // smooth ease-out descent
+    swayDurationMs: 3000,              // settling phase
     autoExitMs: 15000,                 // 15 seconds auto exit
-    exitDurationMs: 1500,              // ~1.5 seconds ease-in climb up
+    exitDurationMs: 1200,              // ~1.2 seconds climb up
   },
   physics: {
-    initialScale: 0.75,                // starts smaller above screen
-    targetScale: 1.0,                  // grows to full size (fakes coming toward you)
-    initialSwayAngleDeg: 8,            // clean natural 8 degrees sway
-    dampingK: 0.85,                    // settles smoothly: exp(-0.85 * 3.5) = 0.05
-    frequencyW: 3.2,                   // pendulum oscillation frequency (rad/sec)
+    initialScale: 0.85,                // smooth descent
+    targetScale: 1.0,                  // full size
+    initialSwayAngleDeg: 0,            // Stays still in fixed heroic hanging pose (no oscillation)
+    dampingK: 1.0,
+    frequencyW: 0.0,
   },
   noteCard: {
-    label: 'HEALTH REMINDER',
+    label: 'REMINDER',
     defaultMessage: 'Time to drink water!',
     doneButtonText: 'Done',
     snoozeButtonText: 'Snooze (5m)',
@@ -64,6 +64,6 @@ export const MOTION_CONFIG: MotionConfig = {
     isMutedDefault: false,
     springStiffness: 170,              // spring stiffness for natural slide-in
     springDamping: 14,                 // spring damping
-    offset: { x: -400, y: -10 },       // guaranteed 50px+ clearance from maximum sway reach
+    offset: { x: -380, y: 70 },        // positioned comfortably beside Spider-Man's torso
   },
 };

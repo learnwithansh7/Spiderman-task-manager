@@ -50,4 +50,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
       ipcRenderer.removeListener('settings-updated', sub);
     };
   },
+
+  // Milestone V1: Voice helper queries
+  getVoiceDevices: () => ipcRenderer.invoke('get-voice-devices'),
+  getVoiceModels: () => ipcRenderer.invoke('get-voice-models'),
 });

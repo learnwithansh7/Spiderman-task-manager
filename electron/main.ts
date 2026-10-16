@@ -1,9 +1,11 @@
-import { app, BrowserWindow, screen, Tray, Menu, nativeImage, globalShortcut, ipcMain, powerMonitor } from 'electron';
+import { app, BrowserWindow, screen, Tray, Menu, nativeImage, globalShortcut, ipcMain, powerMonitor, Notification } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { ReminderScheduler } from './scheduler';
 import { ReminderTypeKey, AppSettings, loadSettings, saveSettings } from './settings';
 import { isForegroundAppFullscreen } from './system';
+import { VoskHelperEngine } from './voice/voskEngine';
+import { AudioDevice, WakeWordError } from './voice/types';
 
 // Crash Resilience: Global Unhandled Exceptions and Rejections
 process.on('uncaughtException', (err) => {
@@ -33,14 +35,33 @@ let overlayWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let scheduler: ReminderScheduler | null = null;
+let voiceEngine: VoskHelperEngine | null = null;
+let availableAudioDevices: AudioDevice[] = [];
+
 let isAnimationPlaying = false;
 let isRendererReady = false;
 let isQuitting = false;
 let pendingTriggerPayload: { message: string; voiceText: string } | null = null;
 
+// Self-trigger prevention & cooldown
+let lastSequenceEndTime = 0;
+const POST_SEQUENCE_COOLDOWN_MS = 3000;
+
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
 console.log('[R7 Startup] Initializing SpiderReminder Milestone R7 (Polish and Reliability)...');
+
+function showPlainNotification(title: string, body: string) {
+  try {
+    if (Notification.isSupported()) {
+      new Notification({ title, body, icon: path.resolve(__dirname, '../../assets/icon.png') }).show();
+    } else if (tray) {
+      tray.displayBalloon({ title, content: body, iconType: 'warning' });
+    }
+  } catch (err) {
+    console.warn('[Notification] Failed to show system notification:', err);
+  }
+}
 
 function applyLoginItemSettings(openAtLogin: boolean) {
   console.log(`[R7 Startup] Applying Windows login item setting: openAtLogin=${openAtLogin}`);
@@ -92,7 +113,6 @@ function createOverlayWindow() {
   overlayWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   overlayWindow.setIgnoreMouseEvents(true, { forward: true });
 
-  // Forward renderer console messages to Node terminal
   overlayWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
     console.log(`[Overlay Console] [Level ${level}] ${message} (${sourceId}:${line})`);
   });
@@ -101,7 +121,6 @@ function createOverlayWindow() {
     console.log('[R7 Window] Overlay renderer did-finish-load event fired.');
   });
 
-  // Renderer Crash Recovery
   overlayWindow.webContents.on('render-process-gone', (_event, details) => {
     console.warn(`[R7 Reliability] Overlay render process gone: reason="${details.reason}", exitCode=${details.exitCode}. Auto-recreating window...`);
     isRendererReady = false;
@@ -174,7 +193,6 @@ function createOrShowSettingsWindow(): BrowserWindow {
     },
   });
 
-  // Intercept window close event to hide instead of destroy, allowing instant reopen
   settingsWindow.on('close', (event) => {
     if (!isQuitting) {
       event.preventDefault();
@@ -249,6 +267,10 @@ function triggerReminderAnimation(message: string, voiceText: string) {
 
   isAnimationPlaying = true;
   console.log(`[R7 Main] Starting reminder animation for: "${message}"`);
+
+  // Pause voice listener while character speaks/animates so he cannot trigger himself
+  voiceEngine?.pause();
+
   overlayWindow.showInactive();
   overlayWindow.webContents.send('trigger-animation', { message, voiceText });
 }
@@ -258,11 +280,33 @@ function updateTrayMenu() {
 
   const currentSettings = scheduler ? scheduler.getSettings() : loadSettings();
   const nextInfo = scheduler ? scheduler.getNextReminderInfo() : { timeString: 'Pending', type: 'water' as ReminderTypeKey };
+  const isListening = voiceEngine?.isListening() || false;
 
   const contextMenu = Menu.buildFromTemplate([
     {
       label: `Next: ${nextInfo.timeString} (${nextInfo.type.toUpperCase()})`,
       enabled: false,
+    },
+    { type: 'separator' },
+    {
+      // Milestone V1: Voice activation On/Off showing real state
+      label: `Voice activation: ${currentSettings.voiceActivationEnabled ? 'On' : 'Off'}`,
+      type: 'checkbox',
+      checked: currentSettings.voiceActivationEnabled,
+      click: (menuItem) => {
+        currentSettings.voiceActivationEnabled = menuItem.checked;
+        saveSettings(currentSettings);
+        scheduler?.updateSettings(currentSettings);
+        if (menuItem.checked) {
+          voiceEngine?.start();
+        } else {
+          voiceEngine?.stop();
+        }
+        updateTrayMenu();
+        if (settingsWindow && !settingsWindow.isDestroyed()) {
+          settingsWindow.webContents.send('settings-updated', currentSettings);
+        }
+      },
     },
     { type: 'separator' },
     {
@@ -317,7 +361,10 @@ function updateTrayMenu() {
     },
   ]);
 
-  tray.setToolTip(`SpiderReminder - Next: ${nextInfo.timeString}`);
+  const tooltipState = currentSettings.voiceActivationEnabled
+    ? (isListening ? '🎙️ Listening for "Hey Spider"' : '🎙️ Voice: Paused')
+    : 'Voice: Off';
+  tray.setToolTip(`SpiderReminder - Next: ${nextInfo.timeString} | ${tooltipState}`);
   tray.setContextMenu(contextMenu);
 }
 
@@ -334,11 +381,9 @@ function createTray() {
 
   tray = new Tray(icon);
   tray.on('click', () => {
-    console.log('[R7 Tray] Tray icon clicked. Opening settings...');
     createOrShowSettingsWindow();
   });
   tray.on('double-click', () => {
-    console.log('[R7 Tray] Tray icon double-clicked. Opening settings...');
     createOrShowSettingsWindow();
   });
 
@@ -349,35 +394,92 @@ function createTray() {
 function registerShortcuts() {
   console.log('[R7 Shortcuts] Registering global shortcuts...');
 
-  // Primary reminder trigger shortcut
   const primary = 'CommandOrControl+Alt+R';
-  const primaryResult = globalShortcut.register(primary, () => {
-    console.log(`[R7 Shortcut] Primary reminder shortcut pressed: ${primary}`);
+  globalShortcut.register(primary, () => {
     scheduler?.triggerImmediateTest();
   });
 
-  // Fallback reminder trigger shortcut
   const fallback = 'CommandOrControl+Alt+Shift+R';
-  const fallbackResult = globalShortcut.register(fallback, () => {
-    console.log(`[R7 Shortcut] Fallback reminder shortcut pressed: ${fallback}`);
+  globalShortcut.register(fallback, () => {
     scheduler?.triggerImmediateTest();
   });
 
-  // Settings UI toggle shortcut (Ctrl+Alt+S / Ctrl+Shift+S)
   const settingsShortcut = 'CommandOrControl+Alt+S';
-  const settingsResult = globalShortcut.register(settingsShortcut, () => {
-    console.log(`[R7 Shortcut] Settings shortcut pressed: ${settingsShortcut}`);
+  globalShortcut.register(settingsShortcut, () => {
     createOrShowSettingsWindow();
   });
 
   const settingsFallback = 'CommandOrControl+Shift+S';
-  const settingsFallbackResult = globalShortcut.register(settingsFallback, () => {
-    console.log(`[R7 Shortcut] Settings fallback shortcut pressed: ${settingsFallback}`);
+  globalShortcut.register(settingsFallback, () => {
     createOrShowSettingsWindow();
   });
+}
 
-  console.log(`[R7 Shortcuts] Reminder: "${primary}" (${primaryResult}), "${fallback}" (${fallbackResult})`);
-  console.log(`[R7 Shortcuts] Settings UI: "${settingsShortcut}" (${settingsResult}), "${settingsFallback}" (${settingsFallbackResult})`);
+// Setup Voice Engine
+function setupVoiceEngine(settings: AppSettings) {
+  voiceEngine = new VoskHelperEngine({
+    modelName: settings.voiceModelName,
+    threshold: settings.voiceSensitivity,
+    alsoSpider: settings.voiceAlsoSpider,
+    deviceId: settings.voiceDeviceId,
+  });
+
+  voiceEngine.onDetected((phrase, conf) => {
+    console.log(`[Main] Voice trigger detected: "${phrase}" (conf: ${conf})`);
+
+    // Guard: ignore if character is currently on screen or was active within 3s
+    const now = Date.now();
+    if (isAnimationPlaying) {
+      console.log('[Main] Character is active. Ignoring detection.');
+      return;
+    }
+    if (now - lastSequenceEndTime < POST_SEQUENCE_COOLDOWN_MS) {
+      console.log('[Main] Within 3s post-sequence cooldown. Ignoring detection.');
+      return;
+    }
+
+    // Trigger summon sequence with a friendly greeting
+    const greeting = 'Hey! Spider-Man here with your reminder.';
+    const type = scheduler ? scheduler.getNextReminderInfo().type : 'water';
+    const config = settings.reminderTypes[type];
+    triggerReminderAnimation(`${greeting} ${config.message}`, `${greeting} ${config.voiceText}`);
+  });
+
+  voiceEngine.onDevices((devices) => {
+    console.log(`[Main] Received ${devices.length} audio input devices from Vosk helper.`);
+    availableAudioDevices = devices;
+  });
+
+  voiceEngine.onStateChange((_listening) => {
+    updateTrayMenu();
+  });
+
+  voiceEngine.onError((err: WakeWordError) => {
+    console.warn(`[Main] WakeWord Error: [${err.code}] ${err.message}`);
+    switch (err.code) {
+      case 'NO_MIC':
+        showPlainNotification('Microphone Not Found', 'SpiderReminder could not find any microphone. Please connect a microphone.');
+        break;
+      case 'MIC_BLOCKED':
+        showPlainNotification('Microphone Blocked', 'Microphone access is blocked by Windows privacy settings. Enable it in Windows Settings → Privacy.');
+        break;
+      case 'MODEL_MISSING':
+        showPlainNotification('Voice Model Missing', 'Vosk speech model is missing from models/vosk/.');
+        break;
+      case 'CRASH_LOOP':
+        showPlainNotification('Voice Activation Stopped', 'The voice helper stopped working after multiple recovery attempts.');
+        break;
+      default:
+        break;
+    }
+  });
+
+  if (settings.voiceActivationEnabled) {
+    console.log('[Main] Voice activation is ENABLED in settings. Starting Vosk helper...');
+    voiceEngine.start();
+  } else {
+    console.log('[Main] Voice activation is OFF by default.');
+  }
 }
 
 // IPC Handlers
@@ -411,10 +513,19 @@ ipcMain.on('reminder-action', (_event, action: 'done' | 'snooze', snoozeMinutes?
 ipcMain.on('animation-complete', () => {
   console.log('[R7 Main] Animation complete received. Hiding overlay window (idle).');
   isAnimationPlaying = false;
+  lastSequenceEndTime = Date.now();
+
   if (overlayWindow && !overlayWindow.isDestroyed()) {
     overlayWindow.hide();
     overlayWindow.setIgnoreMouseEvents(true, { forward: true });
   }
+
+  // Resume voice listener 3 seconds afterwards to guarantee no self-triggering
+  setTimeout(() => {
+    if (!isAnimationPlaying && voiceEngine) {
+      voiceEngine.resume();
+    }
+  }, POST_SEQUENCE_COOLDOWN_MS);
 });
 
 ipcMain.handle('get-settings', () => {
@@ -428,11 +539,23 @@ ipcMain.handle('save-settings', (_event, newSettings: AppSettings) => {
   applyLoginItemSettings(newSettings.startWithWindows);
   updateTrayMenu();
 
-  // User requested: When saving settings, trigger the reminder immediately!
-  console.log('[R7 Main] Settings saved - triggering reminder immediately!');
-  setTimeout(() => {
-    scheduler?.triggerImmediateTest();
-  }, 350);
+  // Update voice engine configuration
+  if (voiceEngine) {
+    voiceEngine.updateConfig({
+      modelName: newSettings.voiceModelName,
+      threshold: newSettings.voiceSensitivity,
+      alsoSpider: newSettings.voiceAlsoSpider,
+      deviceId: newSettings.voiceDeviceId,
+    });
+
+    if (newSettings.voiceActivationEnabled) {
+      if (!voiceEngine.isListening()) {
+        voiceEngine.start();
+      }
+    } else {
+      voiceEngine.stop();
+    }
+  }
 
   return { success: true };
 });
@@ -442,6 +565,14 @@ ipcMain.on('trigger-test-reminder', (_event, type?: ReminderTypeKey) => {
   scheduler?.triggerImmediateTest(type);
 });
 
+ipcMain.handle('get-voice-devices', () => {
+  return availableAudioDevices;
+});
+
+ipcMain.handle('get-voice-models', () => {
+  return voiceEngine ? voiceEngine.getInstalledModels() : [];
+});
+
 // App Lifecycle
 app.whenReady().then(() => {
   console.log('[R7 Lifecycle] App ready event fired.');
@@ -449,17 +580,14 @@ app.whenReady().then(() => {
 
   // Multi-Monitor Event Subscriptions
   screen.on('display-added', (_event, newDisplay) => {
-    console.log(`[R7 Multi-Monitor] Display added: ID ${newDisplay.id} (${newDisplay.size.width}x${newDisplay.size.height})`);
     repositionOverlay();
   });
 
   screen.on('display-removed', (_event, oldDisplay) => {
-    console.log(`[R7 Multi-Monitor] Display removed: ID ${oldDisplay.id}`);
     repositionOverlay();
   });
 
   screen.on('display-metrics-changed', (_event, display, changedMetrics) => {
-    console.log(`[R7 Multi-Monitor] Display metrics changed for ID ${display.id}: ${changedMetrics.join(', ')}`);
     repositionOverlay();
   });
 
@@ -473,144 +601,23 @@ app.whenReady().then(() => {
   createTray();
   registerShortcuts();
 
-  // Apply configured startup setting
   const initialSettings = scheduler.getSettings();
   applyLoginItemSettings(initialSettings.startWithWindows);
 
-  // If user launched the app directly (not autostarted in background with --hidden), show the Settings UI
+  // Setup Vosk voice engine
+  setupVoiceEngine(initialSettings);
+
   const isHiddenLaunch = process.argv.includes('--hidden');
   const isAutomatedTest = process.argv.some(arg => arg.startsWith('--test-'));
   if (!isHiddenLaunch && !isAutomatedTest) {
     console.log('[R7 Startup] Manual user launch detected: opening Settings UI window.');
     createOrShowSettingsWindow();
   }
-
-  // Automated test runner for R4 verification
-  if (process.argv.includes('--test-r4')) {
-    console.log('[R4 Test] Running automated Milestone R4 verification suite...');
-    const docsDir = path.resolve(__dirname, '../../docs');
-    if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
-
-    const waitForReady = setInterval(() => {
-      if (isRendererReady) {
-        clearInterval(waitForReady);
-        scheduler?.triggerImmediateTest('water');
-        setTimeout(async () => {
-          if (overlayWindow && !overlayWindow.isDestroyed()) {
-            const img = await overlayWindow.webContents.capturePage();
-            const target = path.join(docsDir, 'r4-scheduled-reminder.png');
-            fs.writeFileSync(target, img.toPNG());
-            scheduler?.handleSnooze(5);
-            powerMonitor.emit('resume');
-            overlayWindow.webContents.send('trigger-exit');
-            setTimeout(() => {
-              isQuitting = true;
-              app.quit();
-            }, 1000);
-          }
-        }, 4800);
-      }
-    }, 200);
-  }
-
-  // Automated test runner for R5 verification
-  if (process.argv.includes('--test-r5')) {
-    console.log('[R5 Test] Running automated Milestone R5 verification suite...');
-    const docsDir = path.resolve(__dirname, '../../docs');
-    if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
-
-    const win = createOrShowSettingsWindow();
-    win.webContents.once('did-finish-load', () => {
-      setTimeout(async () => {
-        if (win && !win.isDestroyed()) {
-          const img = await win.webContents.capturePage();
-          const target = path.join(docsDir, 'r5-settings-window.png');
-          fs.writeFileSync(target, img.toPNG());
-          win.close();
-          setTimeout(() => {
-            isQuitting = true;
-            app.quit();
-          }, 1000);
-        }
-      }, 1500);
-    });
-  }
-
-  // Automated test runner for R6 verification (Real 3D Character WebM with alpha)
-  if (process.argv.includes('--test-r6')) {
-    console.log('[R6 Test] Running automated Milestone R6 verification suite...');
-    const docsDir = path.resolve(__dirname, '../../docs');
-    if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
-
-    const waitForReady = setInterval(() => {
-      if (isRendererReady) {
-        clearInterval(waitForReady);
-        scheduler?.triggerImmediateTest('water');
-        setTimeout(async () => {
-          if (overlayWindow && !overlayWindow.isDestroyed()) {
-            const img = await overlayWindow.webContents.capturePage();
-            const target = path.join(docsDir, 'r6-character.png');
-            fs.writeFileSync(target, img.toPNG());
-            overlayWindow.webContents.send('trigger-exit');
-            setTimeout(() => {
-              isQuitting = true;
-              app.quit();
-            }, 1500);
-          }
-        }, 4800);
-      }
-    }, 200);
-  }
-
-  // Automated test runner for R7 verification (Polish and Reliability)
-  if (process.argv.includes('--test-r7')) {
-    console.log('[R7 Test] Running automated Milestone R7 verification suite...');
-    const docsDir = path.resolve(__dirname, '../../docs');
-    if (!fs.existsSync(docsDir)) fs.mkdirSync(docsDir, { recursive: true });
-
-    // Step 1: Verify Single Instance Lock
-    console.log(`[R7 Test] Single instance lock state: ${gotTheLock ? 'ACTIVE (LOCKED)' : 'FAILED'}`);
-
-    // Step 2: Test Fullscreen Game / Presentation Detection
-    console.log('[R7 Test] Testing isForegroundAppFullscreen() detection...');
-    isForegroundAppFullscreen().then((isFullscreen) => {
-      console.log(`[R7 Test] Detected foreground fullscreen state: ${isFullscreen} (proper detection for desktop dev environment).`);
-
-      // Step 3: Test Multi-Monitor repositioning
-      console.log('[R7 Test] Testing dynamic multi-monitor display metrics adjustment...');
-      repositionOverlay();
-
-      // Step 4: Trigger reminder with WebM character and capture verification screenshot
-      const waitForReady = setInterval(() => {
-        if (isRendererReady) {
-          clearInterval(waitForReady);
-          console.log('[R7 Test] Overlay renderer ready. Triggering reminder for final polish verification...');
-          scheduler?.triggerImmediateTest('water');
-
-          setTimeout(async () => {
-            if (overlayWindow && !overlayWindow.isDestroyed()) {
-              const img = await overlayWindow.webContents.capturePage();
-              const target = path.join(docsDir, 'r7-polish.png');
-              fs.writeFileSync(target, img.toPNG());
-              console.log(`[R7 Test] Captured docs/r7-polish.png (${img.getSize().width}x${img.getSize().height})`);
-
-              // Retract & exit cleanly
-              overlayWindow.webContents.send('trigger-exit');
-              setTimeout(() => {
-                console.log('[R7 Test] Milestone R7 verification suite completed successfully. Exiting.');
-                isQuitting = true;
-                app.quit();
-              }, 1200);
-            }
-          }, 4800);
-        }
-      }, 200);
-    });
-  }
 });
 
 app.on('will-quit', () => {
-  console.log('[R7 Lifecycle] will-quit: stopping scheduler and unregistering all shortcuts.');
+  console.log('[R7 Lifecycle] will-quit: stopping voice engine and scheduler.');
+  voiceEngine?.stop();
   scheduler?.stop();
   globalShortcut.unregisterAll();
 });

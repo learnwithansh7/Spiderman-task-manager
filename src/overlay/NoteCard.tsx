@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { MOTION_CONFIG } from './config';
 
 interface NoteCardProps {
@@ -11,6 +11,14 @@ interface NoteCardProps {
   onSnooze: () => void;
 }
 
+/**
+ * NoteCard renders the clean, minimal reminder box matching the user's reference screenshot:
+ * - Light ice-blue / lavender background (#dbe4f9)
+ * - 1.5px solid red border (#dc2626) with distinct red square corner tabs at all 4 corners
+ * - Red square bullet + uppercase red "REMINDER" header
+ * - Bold dark charcoal message text with water drop emoji
+ * - Click anywhere to dismiss, with subtle hover controls for Snooze (5m) & Voice Mute
+ */
 export const NoteCard: React.FC<NoteCardProps> = ({
   message,
   springProgress,
@@ -20,64 +28,124 @@ export const NoteCard: React.FC<NoteCardProps> = ({
   onDone,
   onSnooze,
 }) => {
+  const [isHovered, setIsHovered] = useState(false);
+
   const handleMouseEnter = () => {
+    setIsHovered(true);
     window.electronAPI?.setIgnoreMouseEvents(false);
   };
 
   const handleMouseLeave = () => {
+    setIsHovered(false);
     window.electronAPI?.setIgnoreMouseEvents(true, { forward: true });
   };
 
   if (opacity <= 0.01) return null;
 
-  // Spring slide-in: starts 30px to the right and slides into place with natural spring overshoot
-  const slideOffsetX = (1 - springProgress) * 30;
-  const cardScale = 0.94 + 0.06 * springProgress;
+  // Spring slide-in: starts 25px to the right and slides into place with natural spring overshoot
+  const slideOffsetX = (1 - springProgress) * 25;
+  const cardScale = 0.95 + 0.05 * springProgress;
+
+  // Ensure water drop emoji if not already present in water reminders
+  const displayMessage =
+    message.toLowerCase().includes('water') && !message.includes('💧')
+      ? `${message} 💧`
+      : message;
 
   return (
     <div
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onClick={onDone}
+      title="Click to dismiss"
       style={{
         position: 'relative',
-        width: 300,
-        backgroundColor: '#0f172a',
-        backgroundImage: 'linear-gradient(145deg, #1e293b 0%, #0f172a 100%)',
-        border: '1px solid rgba(56, 189, 248, 0.4)',
-        borderRadius: '16px',
-        padding: '18px 20px',
-        boxShadow: '0 20px 45px rgba(0, 0, 0, 0.75), 0 0 25px rgba(2, 132, 199, 0.25)',
-        color: '#f8fafc',
+        width: 250,
+        backgroundColor: '#dbe4f9',
+        border: '1.5px solid #dc2626',
+        borderRadius: '0px',
+        padding: '12px 14px 14px 14px',
+        boxShadow: '0 12px 30px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(220, 38, 38, 0.25)',
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
         transform: `translateX(${slideOffsetX}px) scale(${cardScale})`,
         opacity: opacity,
         pointerEvents: opacity > 0.3 ? 'auto' : 'none',
         userSelect: 'none',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '14px',
+        cursor: 'pointer',
         boxSizing: 'border-box',
+        transition: 'box-shadow 0.2s ease, transform 0.15s ease',
       }}
     >
-      {/* Header: Label Badge + Mute Button */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {/* 4 Red Corner Tabs (Matching Screenshot) */}
+      <span
+        style={{
+          position: 'absolute',
+          top: -3,
+          left: -3,
+          width: 7,
+          height: 7,
+          backgroundColor: '#dc2626',
+          pointerEvents: 'none',
+        }}
+      />
+      <span
+        style={{
+          position: 'absolute',
+          top: -3,
+          right: -3,
+          width: 7,
+          height: 7,
+          backgroundColor: '#dc2626',
+          pointerEvents: 'none',
+        }}
+      />
+      <span
+        style={{
+          position: 'absolute',
+          bottom: -3,
+          left: -3,
+          width: 7,
+          height: 7,
+          backgroundColor: '#dc2626',
+          pointerEvents: 'none',
+        }}
+      />
+      <span
+        style={{
+          position: 'absolute',
+          bottom: -3,
+          right: -3,
+          width: 7,
+          height: 7,
+          backgroundColor: '#dc2626',
+          pointerEvents: 'none',
+        }}
+      />
+
+      {/* Header: Red square bullet + uppercase red label */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '6px',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <span
             style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '50%',
-              backgroundColor: '#38bdf8',
-              boxShadow: '0 0 8px #38bdf8',
+              width: '6px',
+              height: '6px',
+              backgroundColor: '#dc2626',
               display: 'inline-block',
             }}
           />
           <span
             style={{
               fontSize: '11px',
-              fontWeight: 700,
+              fontWeight: 800,
               letterSpacing: '1.2px',
-              color: '#38bdf8',
+              color: '#dc2626',
               textTransform: 'uppercase',
             }}
           >
@@ -85,107 +153,66 @@ export const NoteCard: React.FC<NoteCardProps> = ({
           </span>
         </div>
 
-        {/* Audio Mute/Unmute Toggle */}
-        <button
-          onClick={onToggleMute}
-          title={isMuted ? 'Unmute voice' : 'Mute voice'}
+        {/* Hover action buttons: Mute & Snooze */}
+        <div
           style={{
-            background: isMuted ? 'rgba(51, 65, 85, 0.5)' : 'rgba(2, 132, 199, 0.25)',
-            border: isMuted ? '1px solid #475569' : '1px solid rgba(56, 189, 248, 0.4)',
-            borderRadius: '9999px',
-            color: isMuted ? '#94a3b8' : '#38bdf8',
-            cursor: 'pointer',
-            padding: '3px 9px',
-            fontSize: '12px',
             display: 'flex',
             alignItems: 'center',
-            gap: '4px',
-            transition: 'all 0.15s ease',
+            gap: '6px',
+            opacity: isHovered ? 1 : 0.4,
+            transition: 'opacity 0.2s ease',
           }}
+          onClick={(e) => e.stopPropagation()}
         >
-          <span>{isMuted ? '🔇' : '🔊'}</span>
-          <span style={{ fontSize: '11px', fontWeight: 600 }}>{isMuted ? 'Muted' : 'Voice'}</span>
-        </button>
+          <button
+            onClick={onToggleMute}
+            title={isMuted ? 'Unmute voice' : 'Mute voice'}
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '1px 3px',
+              fontSize: '12px',
+              color: '#dc2626',
+              display: 'flex',
+              alignItems: 'center',
+              lineHeight: 1,
+            }}
+          >
+            {isMuted ? '🔇' : '🔊'}
+          </button>
+          <button
+            onClick={onSnooze}
+            title="Snooze 5 minutes"
+            style={{
+              background: 'rgba(220, 38, 38, 0.1)',
+              border: '1px solid rgba(220, 38, 38, 0.3)',
+              borderRadius: '3px',
+              cursor: 'pointer',
+              padding: '1px 5px',
+              fontSize: '10px',
+              fontWeight: 700,
+              color: '#b91c1c',
+              lineHeight: 1.2,
+            }}
+          >
+            5m
+          </button>
+        </div>
       </div>
 
-      {/* Reminder Message Text */}
+      {/* Main Reminder Message Text */}
       <div
         style={{
           fontSize: '15px',
-          fontWeight: 600,
-          lineHeight: '1.45',
-          color: '#ffffff',
+          fontWeight: 700,
+          lineHeight: '1.35',
+          color: '#0f172a',
           letterSpacing: '-0.2px',
+          wordBreak: 'break-word',
         }}
       >
-        {message}
-      </div>
-
-      {/* Action Buttons: Done and Snooze (5 minutes) */}
-      <div style={{ display: 'flex', gap: '10px', marginTop: '2px' }}>
-        <button
-          onClick={onDone}
-          style={{
-            flex: 1,
-            padding: '10px 14px',
-            fontSize: '13px',
-            fontWeight: 700,
-            borderRadius: '8px',
-            border: 'none',
-            backgroundColor: '#16a34a',
-            backgroundImage: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
-            color: '#ffffff',
-            cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(22, 163, 74, 0.35)',
-            transition: 'all 0.15s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '6px',
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.transform = 'translateY(-1px)';
-            e.currentTarget.style.boxShadow = '0 6px 16px rgba(34, 197, 94, 0.45)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.transform = 'translateY(0)';
-            e.currentTarget.style.boxShadow = '0 4px 12px rgba(22, 163, 74, 0.35)';
-          }}
-        >
-          <span>✓</span>
-          <span>{MOTION_CONFIG.noteCard.doneButtonText}</span>
-        </button>
-
-        <button
-          onClick={onSnooze}
-          style={{
-            flex: 1.1,
-            padding: '10px 12px',
-            fontSize: '13px',
-            fontWeight: 600,
-            borderRadius: '8px',
-            border: '1px solid rgba(255, 255, 255, 0.18)',
-            backgroundColor: 'rgba(255, 255, 255, 0.08)',
-            color: '#e2e8f0',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '5px',
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.14)';
-            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.3)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.08)';
-            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.18)';
-          }}
-        >
-          <span>⏱️</span>
-          <span>{MOTION_CONFIG.noteCard.snoozeButtonText}</span>
-        </button>
+        {displayMessage}
       </div>
     </div>
   );

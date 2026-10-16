@@ -28,6 +28,13 @@ export interface AppSettings {
   lastTriggerTimestamp: number;
   nextTriggerTimestamp: number;
   lastReminderType: ReminderTypeKey;
+
+  // Milestone V1: Voice Activation Settings
+  voiceActivationEnabled: boolean;       // OFF by default
+  voiceDeviceId: number | null;          // null = default mic
+  voiceSensitivity: number;              // threshold, default 0.70
+  voiceAlsoSpider: boolean;              // OFF by default
+  voiceModelName: string;                // default "vosk-model-small-en-in-0.4"
 }
 
 export function getSettingsFilePath(): string {
@@ -73,6 +80,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastTriggerTimestamp: 0,
   nextTriggerTimestamp: 0,
   lastReminderType: 'water',
+
+  // Milestone V1 Defaults
+  voiceActivationEnabled: false,          // Voice activation is OFF by default
+  voiceDeviceId: null,
+  voiceSensitivity: 0.70,
+  voiceAlsoSpider: false,                 // OFF by default
+  voiceModelName: 'vosk-model-small-en-in-0.4',
 };
 
 export function loadSettings(): AppSettings {
@@ -82,14 +96,38 @@ export function loadSettings(): AppSettings {
       const data = fs.readFileSync(filePath, 'utf-8');
       const parsed = JSON.parse(data);
       console.log(`[Settings] Loaded configuration from ${filePath}`);
-      return { ...DEFAULT_SETTINGS, ...parsed };
+
+      // Deep-merge to preserve any new defaults
+      const merged: AppSettings = {
+        ...DEFAULT_SETTINGS,
+        ...parsed,
+        activeHours: {
+          ...DEFAULT_SETTINGS.activeHours,
+          ...(parsed.activeHours || {}),
+        },
+        reminderTypes: {
+          water: {
+            ...DEFAULT_SETTINGS.reminderTypes.water,
+            ...(parsed.reminderTypes?.water || {}),
+          },
+          stretch: {
+            ...DEFAULT_SETTINGS.reminderTypes.stretch,
+            ...(parsed.reminderTypes?.stretch || {}),
+          },
+          eyes: {
+            ...DEFAULT_SETTINGS.reminderTypes.eyes,
+            ...(parsed.reminderTypes?.eyes || {}),
+          },
+        },
+      };
+      return merged;
     }
   } catch (err) {
     console.warn('[Settings] Failed to load settings.json, falling back to defaults:', err);
   }
 
   saveSettings(DEFAULT_SETTINGS);
-  return DEFAULT_SETTINGS;
+  return { ...DEFAULT_SETTINGS };
 }
 
 export function saveSettings(settings: AppSettings): void {

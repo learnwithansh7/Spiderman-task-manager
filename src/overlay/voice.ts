@@ -1,7 +1,7 @@
 /**
- * Windows built-in text-to-speech and audio playback helper.
+ * Windows built-in text-to-speech helper for SpiderReminder.
  * Uses Web Speech API (speechSynthesis) native to Chromium/Electron on Windows.
- * No external libraries or cloud accounts required.
+ * No external libraries, no cloud API, no audio files required.
  */
 
 export function speakReminder(text: string, muted: boolean): void {
@@ -15,34 +15,29 @@ export function speakReminder(text: string, muted: boolean): void {
     return;
   }
 
-  // Check if a custom audio file is available first
-  const audio = new Audio('reminder.mp3');
-  audio.play()
-    .then(() => {
-      console.log('[Voice] Playing custom reminder audio file (assets/reminder.mp3).');
-    })
-    .catch(() => {
-      // Fallback to native Windows Speech Synthesis
-      try {
-        window.speechSynthesis.cancel(); // Cancel any lingering utterances
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
-        utterance.volume = 1.0;
+  try {
+    window.speechSynthesis.cancel(); // Cancel any lingering utterances first
 
-        utterance.onstart = () => {
-          console.log(`[Voice] Windows Speech Synthesis speaking: "${text}"`);
-        };
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+    utterance.volume = 1.0;
 
-        utterance.onerror = (e) => {
-          console.warn('[Voice] Speech synthesis error:', e);
-        };
+    utterance.onstart = () => {
+      console.log(`[Voice] Speaking: "${text}"`);
+    };
 
-        window.speechSynthesis.speak(utterance);
-      } catch (err) {
-        console.warn('[Voice] Failed to execute speech synthesis:', err);
+    utterance.onerror = (e) => {
+      // 'interrupted' is benign — happens when stopVoice() cancels an utterance
+      if ((e as any).error !== 'interrupted') {
+        console.warn('[Voice] Speech synthesis error:', (e as any).error);
       }
-    });
+    };
+
+    window.speechSynthesis.speak(utterance);
+  } catch (err) {
+    console.warn('[Voice] Failed to execute speech synthesis:', err);
+  }
 }
 
 export function stopVoice(): void {

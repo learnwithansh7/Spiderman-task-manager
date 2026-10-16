@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { AnimationPhase } from './types';
-import { Model3DViewer } from './Model3DViewer';
 
 interface CharacterProps {
   size: { width: number; height: number };
@@ -13,8 +12,8 @@ interface CharacterProps {
 }
 
 /**
- * Character renders the 3D Spider-Man model using Model3DViewer (Three.js WebGL)
- * with automatic fallback to high-resolution PNG if WebGL is unavailable.
+ * Character renders the photorealistic 3D Spider-Man hanging upside down in a static heroic pose,
+ * exactly matching the reference screenshot.
  */
 export const Character: React.FC<CharacterProps> = ({
   size,
@@ -22,46 +21,13 @@ export const Character: React.FC<CharacterProps> = ({
   angleDeg,
   scale,
   shadowIntensity,
-  phase = 'IDLE',
   onClick,
 }) => {
-  const [use3DFallback, setUse3DFallback] = useState(false);
-
-  // If 3D model loads and renders cleanly:
-  if (!use3DFallback) {
-    return (
-      <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          top: 0,
-          width: size.width,
-          height: size.height,
-          transform: `translate(${-pivot.x * size.width}px, ${-pivot.y * size.height}px)`,
-          pointerEvents: 'auto',
-          cursor: onClick ? 'pointer' : 'default',
-        }}
-        onClick={onClick}
-      >
-        <Model3DViewer
-          width={size.width}
-          height={size.height}
-          angleDeg={angleDeg}
-          scale={scale}
-          shadowIntensity={shadowIntensity}
-          isPlaying={phase === 'DESCENDING' || phase === 'SWAYING'}
-          onFallback={() => {
-            console.log('[Character] Falling back to 2D high-res character image.');
-            setUse3DFallback(true);
-          }}
-        />
-      </div>
-    );
-  }
-
-  // 2D Image Fallback
-  const shadowBlur = Math.round(shadowIntensity * 16);
-  const shadowAlpha = (shadowIntensity * 0.45).toFixed(2);
+  // Multi-layered realistic 3D volumetric shadow
+  const shadowBlur1 = Math.round(shadowIntensity * 28);
+  const shadowAlpha1 = (shadowIntensity * 0.55).toFixed(2);
+  const shadowBlur2 = Math.round(shadowIntensity * 10);
+  const shadowAlpha2 = (shadowIntensity * 0.4).toFixed(2);
 
   return (
     <div
@@ -76,19 +42,28 @@ export const Character: React.FC<CharacterProps> = ({
         cursor: onClick ? 'pointer' : 'default',
         userSelect: 'none',
         pointerEvents: 'auto',
-        filter: `drop-shadow(0px ${shadowBlur}px ${shadowBlur * 1.5}px rgba(0, 0, 0, ${shadowAlpha}))`,
-        transition: 'filter 0.1s linear',
+        filter: `drop-shadow(0px ${shadowBlur1 * 0.7}px ${shadowBlur1}px rgba(0, 0, 0, ${shadowAlpha1})) drop-shadow(0px ${shadowBlur2 * 0.5}px ${shadowBlur2}px rgba(0, 0, 0, ${shadowAlpha2}))`,
+        transition: 'filter 0.15s ease-out',
       }}
       onClick={onClick}
     >
       <img
         src="../character.png"
-        alt="Character"
+        alt="Spider-Man"
+        onError={(e) => {
+          // Fallback to absolute path if relative path differs
+          const img = e.target as HTMLImageElement;
+          if (!img.dataset.retried) {
+            img.dataset.retried = 'true';
+            img.src = './character.png';
+          }
+        }}
         style={{
           width: '100%',
           height: '100%',
           objectFit: 'contain',
           display: 'block',
+          pointerEvents: 'none',
         }}
       />
     </div>

@@ -31,6 +31,11 @@ const DEFAULT_LOCAL_SETTINGS: AppSettings = {
   lastTriggerTimestamp: 0,
   nextTriggerTimestamp: 0,
   lastReminderType: 'water',
+  voiceActivationEnabled: false,
+  voiceDeviceId: null,
+  voiceSensitivity: 0.70,
+  voiceAlsoSpider: false,
+  voiceModelName: 'vosk-model-small-en-in-0.4',
 };
 
 // Sleek Toggle Switch Component
@@ -77,7 +82,11 @@ export const SettingsApp: React.FC = () => {
   const [saveStatus, setSaveStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Load current settings from main process
+  // Milestone V1: Voice helper devices and models
+  const [voiceDevices, setVoiceDevices] = useState<Array<{ id: number; name: string; default: boolean }>>([]);
+  const [installedModels, setInstalledModels] = useState<string[]>([]);
+
+  // Load current settings & voice data from main process
   useEffect(() => {
     async function init() {
       try {
@@ -85,6 +94,18 @@ export const SettingsApp: React.FC = () => {
           const loaded = await window.electronAPI.getSettings();
           if (loaded) {
             setSettings(loaded);
+          }
+        }
+        if ((window.electronAPI as any)?.getVoiceDevices) {
+          const devs = await (window.electronAPI as any).getVoiceDevices();
+          if (devs && Array.isArray(devs)) {
+            setVoiceDevices(devs);
+          }
+        }
+        if ((window.electronAPI as any)?.getVoiceModels) {
+          const models = await (window.electronAPI as any).getVoiceModels();
+          if (models && Array.isArray(models)) {
+            setInstalledModels(models);
           }
         }
       } catch (err) {
@@ -95,7 +116,6 @@ export const SettingsApp: React.FC = () => {
     }
     init();
 
-    // Listen for external updates (e.g. from tray or snooze)
     if (window.electronAPI?.onSettingsUpdated) {
       const unsub = window.electronAPI.onSettingsUpdated((updated) => {
         setSettings(updated);
@@ -109,24 +129,14 @@ export const SettingsApp: React.FC = () => {
     try {
       if (window.electronAPI?.saveSettings) {
         await window.electronAPI.saveSettings(settings);
-        setSaveStatus('Settings saved! Spider reminder triggered 🕷️');
-        setTimeout(() => setSaveStatus(null), 3500);
+        setSaveStatus('Settings saved successfully!');
+        setTimeout(() => setSaveStatus(null), 3000);
       }
     } catch (err) {
       console.error('[Settings] Failed to save settings:', err);
       setSaveStatus('Failed to save settings.');
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleTestVoice = (text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      window.speechSynthesis.speak(utterance);
     }
   };
 
@@ -223,7 +233,7 @@ export const SettingsApp: React.FC = () => {
         )}
       </header>
 
-      {/* 2. SCROLLABLE CONTENT BODY (NO OVERLAPS) */}
+      {/* 2. SCROLLABLE CONTENT BODY */}
       <main
         style={{
           flex: 1,
@@ -266,75 +276,82 @@ export const SettingsApp: React.FC = () => {
             ))}
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#090d16', padding: '10px 14px', borderRadius: 8, border: '1px solid #1e293b' }}>
-            <span style={{ color: '#cbd5e1', fontSize: 13 }}>Custom interval:</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <input
-                type="number"
-                min={1}
-                max={240}
-                value={settings.intervalMinutes}
-                onChange={(e) => {
-                  const val = Math.max(1, parseInt(e.target.value, 10) || 1);
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: 12, color: '#94a3b8' }}>Custom:</span>
+            <input
+              type="number"
+              min={1}
+              max={180}
+              value={settings.intervalMinutes}
+              onChange={(e) => {
+                const val = parseInt(e.target.value, 10);
+                if (!isNaN(val) && val > 0) {
                   setSettings((s) => ({ ...s, intervalMinutes: val }));
-                }}
-                style={{ ...inputStyle, width: 70, textAlign: 'center' }}
-              />
-              <span style={{ fontSize: 13, color: '#94a3b8' }}>minutes</span>
-            </div>
+                }
+              }}
+              style={{ ...inputStyle, width: 80, textAlign: 'center' }}
+            />
+            <span style={{ fontSize: 12, color: '#64748b' }}>minutes</span>
           </div>
         </div>
 
         {/* CARD 2: ACTIVE WORK HOURS */}
         <div style={cardStyle}>
           <div style={cardHeaderStyle}>
-            <div style={cardTitleStyle}>🕒 Active Work Hours</div>
+            <div>
+              <div style={cardTitleStyle}>🌙 Active Hours</div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                Pause reminders outside work hours
+              </div>
+            </div>
             <ToggleSwitch
               checked={settings.activeHours.enabled}
-              onChange={(checked) => setSettings((s) => ({ ...s, activeHours: { ...s.activeHours, enabled: checked } }))}
+              onChange={(checked) =>
+                setSettings((s) => ({
+                  ...s,
+                  activeHours: { ...s.activeHours, enabled: checked },
+                }))
+              }
             />
           </div>
 
-          <p style={{ margin: '0 0 12px', fontSize: 12, color: '#94a3b8' }}>
-            Only trigger notifications during your working schedule.
-          </p>
-
           {settings.activeHours.enabled && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, backgroundColor: '#090d16', padding: '12px 14px', borderRadius: 8, border: '1px solid #1e293b' }}>
-              <div>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  Start Time
-                </span>
-                <input
-                  type="time"
-                  value={settings.activeHours.start}
-                  onChange={(e) => setSettings((s) => ({ ...s, activeHours: { ...s.activeHours, start: e.target.value } }))}
-                  style={{ ...inputStyle, width: '100%' }}
-                />
-              </div>
-              <div>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#94a3b8', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                  End Time
-                </span>
-                <input
-                  type="time"
-                  value={settings.activeHours.end}
-                  onChange={(e) => setSettings((s) => ({ ...s, activeHours: { ...s.activeHours, end: e.target.value } }))}
-                  style={{ ...inputStyle, width: '100%' }}
-                />
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
+              <input
+                type="time"
+                value={settings.activeHours.start}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    activeHours: { ...s.activeHours, start: e.target.value },
+                  }))
+                }
+                style={inputStyle}
+              />
+              <span style={{ color: '#64748b', fontSize: 12 }}>to</span>
+              <input
+                type="time"
+                value={settings.activeHours.end}
+                onChange={(e) =>
+                  setSettings((s) => ({
+                    ...s,
+                    activeHours: { ...s.activeHours, end: e.target.value },
+                  }))
+                }
+                style={inputStyle}
+              />
             </div>
           )}
         </div>
 
-        {/* CARD 3: SNOOZE & VOICE */}
+        {/* CARD 3: SNOOZE & AUDIO MUTE */}
         <div style={cardStyle}>
           <div style={cardHeaderStyle}>
-            <div style={cardTitleStyle}>🔔 Snooze & Spoken Voice</div>
+            <div style={cardTitleStyle}>🔔 Snooze & Sound</div>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <span style={{ color: '#cbd5e1', fontSize: 13 }}>Snooze Duration:</span>
+            <span style={{ fontSize: 13, color: '#cbd5e1' }}>Snooze Duration:</span>
             <select
               value={settings.snoozeDurationMinutes}
               onChange={(e) => setSettings((s) => ({ ...s, snoozeDurationMinutes: parseInt(e.target.value, 10) }))}
@@ -347,41 +364,23 @@ export const SettingsApp: React.FC = () => {
             </select>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid #1e293b' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <ToggleSwitch
-                checked={!settings.voiceMuted}
-                onChange={(checked) => setSettings((s) => ({ ...s, voiceMuted: !checked }))}
-              />
-              <span style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 500 }}>
-                {!settings.voiceMuted ? '🔊 Voice Spoken' : '🔇 Voice Muted'}
-              </span>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ fontSize: 13, color: '#cbd5e1' }}>Mute Voice Notifications</div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>Silence the spoken voice reminder text</div>
             </div>
-
-            <button
-              type="button"
-              onClick={() => handleTestVoice('SpiderReminder voice test. Stay hydrated and healthy!')}
-              style={{
-                backgroundColor: '#1e293b',
-                border: '1px solid #334155',
-                borderRadius: 6,
-                color: '#38bdf8',
-                padding: '6px 12px',
-                fontSize: 12,
-                fontWeight: 600,
-                cursor: 'pointer',
-                transition: 'all 0.15s ease',
-              }}
-            >
-              Test Voice
-            </button>
+            <ToggleSwitch
+              checked={settings.voiceMuted}
+              onChange={(checked) => setSettings((s) => ({ ...s, voiceMuted: checked }))}
+            />
           </div>
         </div>
 
-        {/* CARD 4: REMINDER MESSAGES */}
+        {/* CARD 4: REMINDER CUSTOMIZATION */}
         <div style={cardStyle}>
           <div style={cardHeaderStyle}>
-            <div style={cardTitleStyle}>📋 Reminder Types & Messages</div>
+            <div style={cardTitleStyle}>💬 Reminder Messages</div>
+            <span style={{ fontSize: 11, color: '#64748b' }}>Customizable per category</span>
           </div>
 
           {/* Water */}
@@ -463,7 +462,119 @@ export const SettingsApp: React.FC = () => {
           </div>
         </div>
 
-        {/* CARD 5: WINDOWS STARTUP */}
+        {/* CARD 5: MILESTONE V1 VOICE ACTIVATION ("Hey Spider") */}
+        <div style={cardStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontWeight: 700, color: '#f8fafc', fontSize: 14 }}>🎙️ Voice Activation ("Hey Spider")</span>
+                <span style={{ fontSize: 10, backgroundColor: '#064e3b', color: '#34d399', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
+                  OFFLINE VOSK
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                Say <strong style={{ color: '#38bdf8' }}>"Hey Spider"</strong> to summon Spider-Man anytime.
+              </div>
+            </div>
+            <ToggleSwitch
+              checked={settings.voiceActivationEnabled}
+              onChange={(checked) => setSettings((s) => ({ ...s, voiceActivationEnabled: checked }))}
+            />
+          </div>
+
+          {settings.voiceActivationEnabled && (
+            <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid #1e293b', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              
+              {/* Microphone Device */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>
+                  Microphone Device:
+                </label>
+                <select
+                  value={settings.voiceDeviceId === null ? 'default' : settings.voiceDeviceId}
+                  onChange={(e) => {
+                    const val = e.target.value === 'default' ? null : parseInt(e.target.value, 10);
+                    setSettings((s) => ({ ...s, voiceDeviceId: val }));
+                  }}
+                  style={{ ...selectStyle, width: '100%' }}
+                >
+                  <option value="default">✨ Default System Microphone</option>
+                  {voiceDevices.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} {d.default ? '(System Default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Sensitivity (Confidence Threshold) */}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: '#cbd5e1' }}>
+                    Sensitivity (Confidence Threshold):
+                  </label>
+                  <span style={{ fontSize: 12, color: '#38bdf8', fontWeight: 700 }}>
+                    {Math.round(settings.voiceSensitivity * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0.40"
+                  max="0.95"
+                  step="0.05"
+                  value={settings.voiceSensitivity}
+                  onChange={(e) => setSettings((s) => ({ ...s, voiceSensitivity: parseFloat(e.target.value) }))}
+                  style={{ width: '100%', cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#64748b', marginTop: 2 }}>
+                  <span>More sensitive (lower threshold)</span>
+                  <span>More strict (fewer false hits)</span>
+                </div>
+              </div>
+
+              {/* Also respond to 'spider' */}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#cbd5e1' }}>
+                    Also respond to just "spider"
+                  </div>
+                  <div style={{ fontSize: 11, color: '#ef4444', marginTop: 2 }}>
+                    ⚠️ Note: May trigger more often during general conversation.
+                  </div>
+                </div>
+                <ToggleSwitch
+                  checked={settings.voiceAlsoSpider}
+                  onChange={(checked) => setSettings((s) => ({ ...s, voiceAlsoSpider: checked }))}
+                />
+              </div>
+
+              {/* Model Choice */}
+              <div>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#cbd5e1', marginBottom: 6 }}>
+                  Vosk Acoustic Model:
+                </label>
+                <select
+                  value={settings.voiceModelName}
+                  onChange={(e) => setSettings((s) => ({ ...s, voiceModelName: e.target.value }))}
+                  style={{ ...selectStyle, width: '100%' }}
+                >
+                  {installedModels.length > 0 ? (
+                    installedModels.map((m) => (
+                      <option key={m} value={m}>
+                        {m === 'vosk-model-small-en-in-0.4' ? '🇮🇳 English (India) - vosk-model-small-en-in-0.4' : m === 'vosk-model-small-en-us-0.15' ? '🇺🇸 English (US) - vosk-model-small-en-us-0.15' : m}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="vosk-model-small-en-in-0.4">vosk-model-small-en-in-0.4</option>
+                  )}
+                </select>
+              </div>
+
+            </div>
+          )}
+        </div>
+
+        {/* CARD 6: WINDOWS STARTUP */}
         <div style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
