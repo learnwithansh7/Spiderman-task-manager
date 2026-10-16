@@ -131,7 +131,7 @@ export const OverlayApp: React.FC = () => {
     springPosRef.current = 0;
     springVelRef.current = 0;
     lastTimeRef.current = performance.now();
-
+    phaseRef.current = 'DESCENDING';
     setPhase('DESCENDING');
     phaseStartTimeRef.current = performance.now();
   }, []);

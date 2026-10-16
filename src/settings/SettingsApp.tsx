@@ -169,7 +169,6 @@ export const SettingsApp: React.FC = () => {
     );
   }
 
-  const presets = [20, 30, 45, 60];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#090d16', color: '#f8fafc', overflow: 'hidden' }}>
@@ -212,25 +211,6 @@ export const SettingsApp: React.FC = () => {
           </div>
         </div>
 
-        {settings.nextTriggerTimestamp > 0 && (
-          <div
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: '#38bdf8',
-              backgroundColor: 'rgba(2, 132, 199, 0.15)',
-              padding: '5px 12px',
-              borderRadius: 20,
-              border: '1px solid rgba(56, 189, 248, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#38bdf8', display: 'inline-block' }} />
-            <span>Next: {new Date(settings.nextTriggerTimestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-        )}
       </header>
 
       {/* 2. SCROLLABLE CONTENT BODY */}
@@ -244,137 +224,6 @@ export const SettingsApp: React.FC = () => {
           gap: 16,
         }}
       >
-        {/* CARD 1: REMINDER INTERVAL */}
-        <div style={cardStyle}>
-          <div style={cardHeaderStyle}>
-            <div style={cardTitleStyle}>⏱️ Reminder Interval</div>
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>Every {settings.intervalMinutes} mins</span>
-          </div>
-
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-            {presets.map((min) => (
-              <button
-                key={min}
-                type="button"
-                onClick={() => setSettings((s) => ({ ...s, intervalMinutes: min }))}
-                style={{
-                  flex: 1,
-                  padding: '8px 0',
-                  borderRadius: 8,
-                  border: settings.intervalMinutes === min ? '1px solid #38bdf8' : '1px solid #334155',
-                  backgroundColor: settings.intervalMinutes === min ? '#0284c7' : '#1e293b',
-                  color: '#ffffff',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: 13,
-                  boxShadow: settings.intervalMinutes === min ? '0 2px 8px rgba(2, 132, 199, 0.4)' : 'none',
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {min}m
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>Custom:</span>
-            <input
-              type="number"
-              min={1}
-              max={180}
-              value={settings.intervalMinutes}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (!isNaN(val) && val > 0) {
-                  setSettings((s) => ({ ...s, intervalMinutes: val }));
-                }
-              }}
-              style={{ ...inputStyle, width: 80, textAlign: 'center' }}
-            />
-            <span style={{ fontSize: 12, color: '#64748b' }}>minutes</span>
-          </div>
-        </div>
-
-        {/* CARD 2: ACTIVE WORK HOURS */}
-        <div style={cardStyle}>
-          <div style={cardHeaderStyle}>
-            <div>
-              <div style={cardTitleStyle}>🌙 Active Hours</div>
-              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
-                Pause reminders outside work hours
-              </div>
-            </div>
-            <ToggleSwitch
-              checked={settings.activeHours.enabled}
-              onChange={(checked) =>
-                setSettings((s) => ({
-                  ...s,
-                  activeHours: { ...s.activeHours, enabled: checked },
-                }))
-              }
-            />
-          </div>
-
-          {settings.activeHours.enabled && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12 }}>
-              <input
-                type="time"
-                value={settings.activeHours.start}
-                onChange={(e) =>
-                  setSettings((s) => ({
-                    ...s,
-                    activeHours: { ...s.activeHours, start: e.target.value },
-                  }))
-                }
-                style={inputStyle}
-              />
-              <span style={{ color: '#64748b', fontSize: 12 }}>to</span>
-              <input
-                type="time"
-                value={settings.activeHours.end}
-                onChange={(e) =>
-                  setSettings((s) => ({
-                    ...s,
-                    activeHours: { ...s.activeHours, end: e.target.value },
-                  }))
-                }
-                style={inputStyle}
-              />
-            </div>
-          )}
-        </div>
-
-        {/* CARD 3: SNOOZE & AUDIO MUTE */}
-        <div style={cardStyle}>
-          <div style={cardHeaderStyle}>
-            <div style={cardTitleStyle}>🔔 Snooze & Sound</div>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <span style={{ fontSize: 13, color: '#cbd5e1' }}>Snooze Duration:</span>
-            <select
-              value={settings.snoozeDurationMinutes}
-              onChange={(e) => setSettings((s) => ({ ...s, snoozeDurationMinutes: parseInt(e.target.value, 10) }))}
-              style={selectStyle}
-            >
-              <option value={3}>3 minutes</option>
-              <option value={5}>5 minutes</option>
-              <option value={10}>10 minutes</option>
-              <option value={15}>15 minutes</option>
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <div style={{ fontSize: 13, color: '#cbd5e1' }}>Mute Voice Notifications</div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>Silence the spoken voice reminder text</div>
-            </div>
-            <ToggleSwitch
-              checked={settings.voiceMuted}
-              onChange={(checked) => setSettings((s) => ({ ...s, voiceMuted: checked }))}
-            />
-          </div>
-        </div>
 
         {/* CARD 4: REMINDER CUSTOMIZATION */}
         <div style={cardStyle}>

@@ -216,5 +216,8 @@ export class AnimationSequencer {
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       this.overlayWindow.hide();
     }
+    if (this.voiceEngine?.isPausedState()) {
+      this.voiceEngine.resume();
+    }
   }
 }

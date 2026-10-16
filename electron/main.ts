@@ -404,54 +404,64 @@ function registerShortcuts() {
 }
 
 // Setup Voice Engine
-function setupVoiceEngine(settings: AppSettings) {
-  voiceEngine = new VoskHelperEngine({
-    modelName: settings.voiceModelName,
-    threshold: settings.voiceSensitivity,
-    alsoSpider: settings.voiceAlsoSpider,
-    deviceId: settings.voiceDeviceId,
-  });
-  sequencer.setVoiceEngine(voiceEngine);
-
-  voiceEngine.onDetected((phrase, conf) => {
-    console.log(`[Voice] Detected phrase: "${phrase}" (conf: ${conf})`);
-    sequencer.trigger('voice');
-  });
-
-  voiceEngine.onDevices((devices) => {
-    console.log(`[Voice] Received ${devices.length} audio input devices from helper.`);
-    availableAudioDevices = devices;
-  });
-
-  voiceEngine.onStateChange((_listening) => {
-    updateTrayMenu();
-  });
-
-  voiceEngine.onError((err: WakeWordError) => {
-    console.warn(`[Voice] Error received: [${err.code}] ${err.message}`);
-    switch (err.code) {
-      case 'MODEL_MISSING':
-        showPlainNotification('SpiderReminder', 'Voice model not found');
-        break;
-      case 'NO_MIC':
-        showPlainNotification('Microphone Not Found', 'SpiderReminder could not find any microphone. Please connect a microphone.');
-        break;
-      case 'MIC_BLOCKED':
-        showPlainNotification('Microphone Blocked', 'Microphone access is blocked by Windows privacy settings. Enable it in Windows Settings → Privacy.');
-        break;
-      case 'CRASH_LOOP':
-        showPlainNotification('Voice Activation Stopped', 'The voice helper stopped working after multiple recovery attempts.');
-        break;
-      default:
-        break;
+async function setupVoiceEngine(settings: AppSettings) {
+  try {
+    // Sanitize sensitivity threshold (default to 0.70 if unconfigured or out of range)
+    let threshold = settings.voiceSensitivity;
+    if (typeof threshold !== 'number' || isNaN(threshold) || threshold > 0.85 || threshold < 0.40) {
+      threshold = 0.70;
     }
-  });
 
-  if (settings.voiceActivationEnabled) {
-    console.log('[Voice] Voice activation is ENABLED in settings. Starting Vosk helper...');
-    voiceEngine.start();
-  } else {
-    console.log('[Voice] Voice activation is OFF by default.');
+    voiceEngine = new VoskHelperEngine({
+      modelName: settings.voiceModelName || 'vosk-model-small-en-us-0.15',
+      threshold,
+      alsoSpider: settings.voiceAlsoSpider,
+      deviceId: settings.voiceDeviceId,
+    });
+    sequencer.setVoiceEngine(voiceEngine);
+
+    voiceEngine.onDetected((phrase, conf) => {
+      console.log(`[Voice] Detected phrase: "${phrase}" (conf: ${conf})`);
+      sequencer.trigger('voice');
+    });
+
+    voiceEngine.onDevices((devices) => {
+      console.log(`[Voice] Received ${devices.length} audio input devices from helper.`);
+      availableAudioDevices = devices;
+    });
+
+    voiceEngine.onStateChange((_listening) => {
+      updateTrayMenu();
+    });
+
+    voiceEngine.onError((err: WakeWordError) => {
+      console.warn(`[Voice] Error received: [${err.code}] ${err.message}`);
+      switch (err.code) {
+        case 'MODEL_MISSING':
+          showPlainNotification('SpiderReminder', 'Voice model not found');
+          break;
+        case 'NO_MIC':
+          showPlainNotification('Microphone Not Found', 'SpiderReminder could not find any microphone. Please connect a microphone.');
+          break;
+        case 'MIC_BLOCKED':
+          showPlainNotification('Microphone Blocked', 'Microphone access is blocked by Windows privacy settings. Enable it in Windows Settings → Privacy.');
+          break;
+        case 'CRASH_LOOP':
+          showPlainNotification('Voice Activation Stopped', 'The voice helper stopped working after multiple recovery attempts.');
+          break;
+        default:
+          break;
+      }
+    });
+
+    if (settings.voiceActivationEnabled) {
+      console.log('[Voice] Voice activation is ENABLED in settings. Starting Vosk helper...');
+      await voiceEngine.start();
+    } else {
+      console.log('[Voice] Voice activation is OFF by default.');
+    }
+  } catch (err) {
+    console.error('[Voice] Error setting up voice engine:', err);
   }
 }
 
@@ -571,7 +581,8 @@ app.whenReady().then(() => {
     updateTrayMenu();
   });
   sequencer.setScheduler(scheduler);
-  scheduler.start();
+  // Reminder timer is completely stopped - no reminder timer created at startup
+  console.log('[Scheduler] Reminder timer is disabled. No reminder timer created at startup.');
 
   createTray();
   registerShortcuts();
@@ -579,8 +590,22 @@ app.whenReady().then(() => {
   const initialSettings = scheduler.getSettings();
   applyLoginItemSettings(initialSettings.startWithWindows);
 
-  // Setup Vosk voice engine
-  setupVoiceEngine(initialSettings);
+  // Start voice helper asynchronously inside try/catch after tray, shortcuts, and overlay are ready
+  const startVoiceSafely = async () => {
+    try {
+      await setupVoiceEngine(initialSettings);
+    } catch (err) {
+      console.error('[Voice] Async voice engine initialization failed:', err);
+    }
+  };
+
+  if (overlayWindow && !overlayWindow.isDestroyed() && overlayWindow.webContents.isLoading()) {
+    overlayWindow.webContents.once('did-finish-load', () => {
+      startVoiceSafely();
+    });
+  } else {
+    setImmediate(startVoiceSafely);
+  }
 
   const isHiddenLaunch = process.argv.includes('--hidden');
   const isAutomatedTest = process.argv.some(arg => arg.startsWith('--test-'));
