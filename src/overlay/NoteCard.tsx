@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { MOTION_CONFIG } from './config';
 
 interface NoteCardProps {
   message: string;
@@ -8,16 +7,16 @@ interface NoteCardProps {
   isMuted: boolean;
   onToggleMute: () => void;
   onDone: () => void;
-  onSnooze: () => void;
+  onSnooze?: () => void;
 }
 
 /**
- * NoteCard renders the clean, minimal reminder box matching the user's reference screenshot:
+ * NoteCard renders the clean card beside Spider-Man:
  * - Light ice-blue / lavender background (#dbe4f9)
  * - 1.5px solid red border (#dc2626) with distinct red square corner tabs at all 4 corners
- * - Red square bullet + uppercase red "REMINDER" header
- * - Bold dark charcoal message text with water drop emoji
- * - Click anywhere to dismiss, with subtle hover controls for Snooze (5m) & Voice Mute
+ * - Red square bullet + uppercase red "TODAY'S WORK" header
+ * - Single "Close" button that makes Spider-Man leave (same as Done)
+ * - Clean message text
  */
 export const NoteCard: React.FC<NoteCardProps> = ({
   message,
@@ -26,7 +25,6 @@ export const NoteCard: React.FC<NoteCardProps> = ({
   isMuted,
   onToggleMute,
   onDone,
-  onSnooze,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
 
@@ -46,21 +44,15 @@ export const NoteCard: React.FC<NoteCardProps> = ({
   const slideOffsetX = (1 - springProgress) * 25;
   const cardScale = 0.95 + 0.05 * springProgress;
 
-  // Ensure water drop emoji if not already present in water reminders
-  const displayMessage =
-    message.toLowerCase().includes('water') && !message.includes('💧')
-      ? `${message} 💧`
-      : message;
-
   return (
     <div
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
       onClick={onDone}
-      title="Click to dismiss"
+      title="Click Close or anywhere on card to dismiss"
       style={{
         position: 'relative',
-        width: 250,
+        width: 260,
         backgroundColor: '#dbe4f9',
         border: '1.5px solid #dc2626',
         borderRadius: '0px',
@@ -76,7 +68,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({
         transition: 'box-shadow 0.2s ease, transform 0.15s ease',
       }}
     >
-      {/* 4 Red Corner Tabs (Matching Screenshot) */}
+      {/* 4 Red Corner Tabs */}
       <span
         style={{
           position: 'absolute',
@@ -122,13 +114,13 @@ export const NoteCard: React.FC<NoteCardProps> = ({
         }}
       />
 
-      {/* Header: Red square bullet + uppercase red label */}
+      {/* Header: Red square bullet + uppercase label + single Close button */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          marginBottom: '6px',
+          marginBottom: '8px',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -149,62 +141,58 @@ export const NoteCard: React.FC<NoteCardProps> = ({
               textTransform: 'uppercase',
             }}
           >
-            {MOTION_CONFIG.noteCard.label}
+            TODAY'S WORK
           </span>
         </div>
 
-        {/* Hover action buttons: Mute & Snooze */}
+        {/* Action button: single Close button */}
         <div
           style={{
             display: 'flex',
             alignItems: 'center',
             gap: '6px',
-            opacity: isHovered ? 1 : 0.4,
+            opacity: isHovered ? 1 : 0.85,
             transition: 'opacity 0.2s ease',
           }}
           onClick={(e) => e.stopPropagation()}
         >
           <button
-            onClick={onToggleMute}
-            title={isMuted ? 'Unmute voice' : 'Mute voice'}
+            type="button"
+            onClick={onDone}
+            title="Dismiss Spider-Man"
             style={{
-              background: 'none',
-              border: 'none',
+              background: 'rgba(220, 38, 38, 0.12)',
+              border: '1px solid rgba(220, 38, 38, 0.4)',
+              borderRadius: '4px',
               cursor: 'pointer',
-              padding: '1px 3px',
-              fontSize: '12px',
-              color: '#dc2626',
-              display: 'flex',
-              alignItems: 'center',
-              lineHeight: 1,
-            }}
-          >
-            {isMuted ? '🔇' : '🔊'}
-          </button>
-          <button
-            onClick={onSnooze}
-            title="Snooze 5 minutes"
-            style={{
-              background: 'rgba(220, 38, 38, 0.1)',
-              border: '1px solid rgba(220, 38, 38, 0.3)',
-              borderRadius: '3px',
-              cursor: 'pointer',
-              padding: '1px 5px',
-              fontSize: '10px',
+              padding: '2px 8px',
+              fontSize: '11px',
               fontWeight: 700,
               color: '#b91c1c',
               lineHeight: 1.2,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.25)';
+              e.currentTarget.style.color = '#991b1b';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.12)';
+              e.currentTarget.style.color = '#b91c1c';
             }}
           >
-            5m
+            Close
           </button>
         </div>
       </div>
 
-      {/* Main Reminder Message Text */}
+      {/* Main Message Text */}
       <div
         style={{
-          fontSize: '15px',
+          fontSize: '14px',
           fontWeight: 700,
           lineHeight: '1.35',
           color: '#0f172a',
@@ -212,7 +200,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({
           wordBreak: 'break-word',
         }}
       >
-        {displayMessage}
+        {message}
       </div>
     </div>
   );

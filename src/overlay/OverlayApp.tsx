@@ -355,7 +355,6 @@ export const OverlayApp: React.FC = () => {
             isMuted={isMuted}
             onToggleMute={handleToggleMute}
             onDone={handleDone}
-            onSnooze={handleSnooze}
           />
         </div>
       )}

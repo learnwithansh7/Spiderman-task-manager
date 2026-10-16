@@ -87,11 +87,9 @@ export class AnimationSequencer {
 
     console.log(`[Seq] [${id}] [${new Date().toISOString()}] Decision: Start sequence`);
 
-    const type = this.scheduler ? this.scheduler.getNextReminderInfo().type : 'water';
-    const config = settings.reminderTypes[type];
-    const greeting = 'Hey! Spider-Man here with your reminder.';
-    const message = customMessage || (source === 'voice' ? `${greeting} ${config.message}` : config.message);
-    const voiceText = customVoiceText || (source === 'voice' ? `${greeting} ${config.voiceText}` : config.voiceText);
+    const greeting = 'Hey! Spider-Man here with your tasks for today.';
+    const message = customMessage || greeting;
+    const voiceText = customVoiceText || greeting;
 
     if (!this.isRendererReady) {
       console.log(`[Seq] [${id}] Renderer not ready yet. Queuing trigger message.`);
