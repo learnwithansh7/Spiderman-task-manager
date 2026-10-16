@@ -6,6 +6,8 @@ import { WebStrand } from './WebStrand';
 import { NoteCard } from './NoteCard';
 import { speakReminder, stopVoice } from './voice';
 
+const GREETING_SPEECH_ENABLED = false;
+
 export const OverlayApp: React.FC = () => {
   const [phase, setPhase] = useState<AnimationPhase>('IDLE');
   const [message, setMessage] = useState<string>(MOTION_CONFIG.noteCard.defaultMessage);
@@ -235,7 +237,9 @@ export const OverlayApp: React.FC = () => {
             const textToSpeak = voiceTextRef.current || message;
             console.log(`[Seq] [${corrId}] [${new Date().toISOString()}] Voice greeting started: "${textToSpeak}"`);
             window.electronAPI?.send?.('seq-voice-started', { correlationId: corrId, text: textToSpeak });
-            speakReminder(textToSpeak, isMuted);
+            if (GREETING_SPEECH_ENABLED) {
+              speakReminder(textToSpeak, isMuted);
+            }
           }
 
           // Start 15s auto-exit timer
@@ -337,8 +341,8 @@ export const OverlayApp: React.FC = () => {
         />
       )}
 
-      {/* NoteCard Container - positioned stably beside resting character */}
-      {cardOpacity > 0.01 && (
+      {/* NoteCard Container - replaced by dedicated cardWindow */}
+      {false && cardOpacity > 0.01 && (
         <div
           style={{
             position: 'absolute',

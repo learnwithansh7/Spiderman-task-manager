@@ -74,19 +74,13 @@ export class TaskStorage {
     if (typeof t.title !== 'string') return false;
     const trimmedTitle = t.title.trim();
     if (trimmedTitle.length < 1 || trimmedTitle.length > 200) return false;
-    if (typeof t.done !== 'boolean') return false;
-    if (typeof t.order !== 'number' || isNaN(t.order)) return false;
-    if (typeof t.createdAt !== 'string' || !t.createdAt) return false;
-    if (typeof t.updatedAt !== 'string' || !t.updatedAt) return false;
-    if (t.completedAt !== null && typeof t.completedAt !== 'string') return false;
-    if (typeof t.archived !== 'boolean') return false;
-    if (t.dueDate !== null && t.dueDate !== undefined) return false;
-    if (t.priority !== null && t.priority !== undefined) return false;
+    if (t.done !== undefined && typeof t.done !== 'boolean') return false;
     return true;
   }
 
   /**
    * Validates a parsed tasks JSON structure. Returns Task[] if valid, null otherwise.
+   * Tasks loaded without "done" are treated as done=false.
    */
   public validateDataFile(data: any): Task[] | null {
     if (!data || typeof data !== 'object') return null;
@@ -98,15 +92,17 @@ export class TaskStorage {
       if (!this.isValidTask(item)) {
         return null;
       }
+      const isDone = typeof item.done === 'boolean' ? item.done : false;
       validated.push({
+        ...item,
         id: item.id,
         title: item.title.trim(),
-        done: item.done,
-        order: item.order,
-        createdAt: item.createdAt,
-        updatedAt: item.updatedAt,
-        completedAt: item.completedAt || null,
-        archived: item.archived,
+        done: isDone,
+        order: typeof item.order === 'number' ? item.order : 0,
+        createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString(),
+        updatedAt: typeof item.updatedAt === 'string' ? item.updatedAt : new Date().toISOString(),
+        completedAt: item.completedAt !== undefined ? item.completedAt : (isDone ? new Date().toISOString() : null),
+        archived: typeof item.archived === 'boolean' ? item.archived : false,
         dueDate: null,
         priority: null,
       });

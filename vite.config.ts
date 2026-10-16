@@ -18,6 +18,7 @@ export default defineConfig({
       input: {
         overlay: path.resolve(__dirname, 'src/overlay/index.html'),
         settings: path.resolve(__dirname, 'src/settings/index.html'),
+        card: path.resolve(__dirname, 'src/card/index.html'),
       },
     },
   },

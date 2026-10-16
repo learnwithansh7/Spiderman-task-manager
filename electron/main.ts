@@ -35,6 +35,7 @@ app.on('second-instance', () => {
 
 let overlayWindow: BrowserWindow | null = null;
 let settingsWindow: BrowserWindow | null = null;
+let cardWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let scheduler: ReminderScheduler | null = null;
 let voiceEngine: VoskHelperEngine | null = null;
@@ -247,6 +248,105 @@ function createOrShowSettingsWindow(): BrowserWindow {
   });
 
   return settingsWindow;
+}
+
+function createCardWindow(): BrowserWindow {
+  if (cardWindow && !cardWindow.isDestroyed()) {
+    return cardWindow;
+  }
+
+  console.log('[Card] Creating task card window (frameless, transparent, focusable: false)...');
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const cardWidth = 320;
+  const cardHeight = 380;
+  const targetX = Math.round(screenWidth * 0.82 - 360);
+  const targetY = Math.round(screenHeight * 0.14 + 50);
+  const posX = Math.max(10, Math.min(targetX, screenWidth - cardWidth - 10));
+  const posY = Math.max(10, Math.min(targetY, screenHeight - cardHeight - 10));
+
+  cardWindow = new BrowserWindow({
+    width: cardWidth,
+    height: cardHeight,
+    x: posX,
+    y: posY,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    focusable: false,
+    resizable: false,
+    show: false,
+    hasShadow: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  cardWindow.setAlwaysOnTop(true, 'screen-saver');
+
+  cardWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      cardWindow?.hide();
+    }
+  });
+
+  cardWindow.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    console.log(`[Card Console] [Level ${level}] ${message} (${sourceId}:${line})`);
+  });
+
+  const cardHtml = path.resolve(__dirname, '../../dist/renderer/card/index.html');
+  if (isDev && process.env.VITE_DEV_SERVER_URL) {
+    const devUrl = `${process.env.VITE_DEV_SERVER_URL}/card/index.html`;
+    cardWindow.loadURL(devUrl).catch(() => {
+      cardWindow?.loadFile(cardHtml);
+    });
+  } else {
+    cardWindow.loadFile(cardHtml);
+  }
+
+  cardWindow.on('closed', () => {
+    cardWindow = null;
+  });
+
+  return cardWindow;
+}
+
+function showCardWindow(): void {
+  try {
+    if (!cardWindow || cardWindow.isDestroyed()) {
+      createCardWindow();
+    }
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+    const cardWidth = 320;
+    const cardHeight = 380;
+    const targetX = Math.round(screenWidth * 0.82 - 360);
+    const targetY = Math.round(screenHeight * 0.14 + 50);
+    const posX = Math.max(10, Math.min(targetX, screenWidth - cardWidth - 10));
+    const posY = Math.max(10, Math.min(targetY, screenHeight - cardHeight - 10));
+    cardWindow?.setBounds({ x: posX, y: posY, width: cardWidth, height: cardHeight });
+
+    // showInactive ensures typing in other windows is never interrupted
+    cardWindow?.showInactive();
+    console.log('[Card] Task card window displayed beside character.');
+  } catch (err: any) {
+    console.error('[Card] Failed to open card window:', err?.message || err);
+  }
+}
+
+function hideCardWindow(): void {
+  try {
+    if (cardWindow && !cardWindow.isDestroyed()) {
+      cardWindow.hide();
+      console.log('[Card] Task card window hidden.');
+    }
+  } catch (err: any) {
+    console.error('[Card] Failed to hide card window:', err?.message || err);
+  }
 }
 
 function triggerReminderAnimation(message: string, voiceText: string) {
@@ -479,6 +579,11 @@ ipcMain.on('seq-started', (_event, { correlationId }) => {
 
 ipcMain.on('seq-state', (_event, { correlationId, state }) => {
   sequencer.handleStateChange(correlationId, state);
+  if (state === 'LOOP') {
+    showCardWindow();
+  } else if (state === 'OUTRO' || state === 'HIDDEN') {
+    hideCardWindow();
+  }
 });
 
 ipcMain.on('seq-voice-started', (_event, { correlationId, text }) => {
@@ -486,8 +591,16 @@ ipcMain.on('seq-voice-started', (_event, { correlationId, text }) => {
 });
 
 ipcMain.on('seq-complete', (_event, { correlationId }) => {
+  hideCardWindow();
   sequencer.handleComplete(correlationId);
   updateTrayMenu();
+});
+
+ipcMain.on('dismiss-spider', () => {
+  hideCardWindow();
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('trigger-exit');
+  }
 });
 
 ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
@@ -562,7 +675,7 @@ ipcMain.handle('get-voice-models', () => {
 // Tasks IPC Handlers with sender validation
 ipcMain.handle('tasks:list', (event, options) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed() || (win !== overlayWindow && win !== settingsWindow)) {
+  if (!win || win.isDestroyed() || !BrowserWindow.getAllWindows().includes(win)) {
     console.warn('[Tasks] tasks:list rejected: unauthorized sender.');
     throw new Error('Forbidden');
   }
@@ -571,7 +684,7 @@ ipcMain.handle('tasks:list', (event, options) => {
 
 ipcMain.handle('tasks:add', async (event, title: string) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed() || (win !== overlayWindow && win !== settingsWindow)) {
+  if (!win || win.isDestroyed() || !BrowserWindow.getAllWindows().includes(win)) {
     console.warn('[Tasks] tasks:add rejected: unauthorized sender.');
     throw new Error('Forbidden');
   }
@@ -581,7 +694,7 @@ ipcMain.handle('tasks:add', async (event, title: string) => {
 
 ipcMain.handle('tasks:remove', async (event, id: string) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed() || (win !== overlayWindow && win !== settingsWindow)) {
+  if (!win || win.isDestroyed() || !BrowserWindow.getAllWindows().includes(win)) {
     console.warn('[Tasks] tasks:remove rejected: unauthorized sender.');
     throw new Error('Forbidden');
   }
@@ -591,11 +704,14 @@ ipcMain.handle('tasks:remove', async (event, id: string) => {
 
 ipcMain.handle('tasks:toggle', async (event, id: string) => {
   const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed() || (win !== overlayWindow && win !== settingsWindow)) {
+  if (!win || win.isDestroyed() || !BrowserWindow.getAllWindows().includes(win)) {
     console.warn('[Tasks] tasks:toggle rejected: unauthorized sender.');
     throw new Error('Forbidden');
   }
   if (!taskService) throw new Error('Task service not available');
+  if (typeof id !== 'string' || !id.trim()) {
+    throw new Error('Invalid task id');
+  }
   return await taskService.toggle(id);
 });
 
@@ -636,13 +752,15 @@ app.whenReady().then(() => {
   taskService = new TaskService();
   taskService.on('changed', () => {
     const list = taskService?.list() || [];
-    if (overlayWindow && !overlayWindow.isDestroyed()) {
-      overlayWindow.webContents.send('tasks:changed', list);
-    }
-    if (settingsWindow && !settingsWindow.isDestroyed()) {
-      settingsWindow.webContents.send('tasks:changed', list);
-    }
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send('tasks:changed', list);
+      }
+    });
   });
+
+  // Pre-create task card window hidden so it's ready when Spider-Man descends
+  createCardWindow();
 
   // Start voice helper asynchronously inside try/catch after tray, shortcuts, and overlay are ready
   const startVoiceSafely = async () => {
@@ -675,6 +793,9 @@ app.on('will-quit', () => {
   killStaleVoiceHelpers();
   scheduler?.stop();
   taskService?.destroy();
+  if (cardWindow && !cardWindow.isDestroyed()) {
+    cardWindow.destroy();
+  }
   globalShortcut.unregisterAll();
 });
 
