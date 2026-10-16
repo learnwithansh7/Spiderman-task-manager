@@ -574,7 +574,57 @@ export const SettingsApp: React.FC = () => {
           )}
         </div>
 
-        {/* CARD 6: WINDOWS STARTUP */}
+        {/* CARD 6: SHORTCUTS & INSTANT SUMMON */}
+        <div style={cardStyle}>
+          <div style={cardHeaderStyle}>
+            <div>
+              <div style={cardTitleStyle}>⌨️ Global Shortcuts & Manual Summon</div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                Summon Spider-Man anytime across desktop apps and games
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleTriggerTest('water')}
+              style={{
+                backgroundColor: '#dc2626',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 6,
+                padding: '6px 14px',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                boxShadow: '0 2px 8px rgba(220, 38, 38, 0.4)',
+              }}
+            >
+              🕷️ Summon Now
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 8 }}>
+            <div style={{ backgroundColor: '#090d16', padding: '10px 12px', borderRadius: 6, border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Summon Spider-Man</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8', marginTop: 4, fontFamily: 'monospace' }}>Alt + Shift + R</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Or Ctrl + Alt + Shift + R</div>
+            </div>
+
+            <div style={{ backgroundColor: '#090d16', padding: '10px 12px', borderRadius: 6, border: '1px solid #1e293b' }}>
+              <div style={{ fontSize: 11, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 600 }}>Open Settings</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#a78bfa', marginTop: 4, fontFamily: 'monospace' }}>Ctrl + Alt + S</div>
+              <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>Or Alt + Shift + S</div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: 11, color: '#64748b', marginTop: 10, lineHeight: 1.4 }}>
+            💡 <strong style={{ color: '#94a3b8' }}>Tip:</strong> If <code style={{ color: '#f59e0b' }}>Ctrl + Alt + R</code> is claimed by AMD Radeon / GPU recording tools, use <strong style={{ color: '#38bdf8' }}>Alt + Shift + R</strong> or <strong style={{ color: '#38bdf8' }}>Ctrl + Alt + Shift + R</strong>.
+          </div>
+        </div>
+
+        {/* CARD 7: WINDOWS STARTUP */}
         <div style={cardStyle}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>

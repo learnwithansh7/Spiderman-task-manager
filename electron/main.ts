@@ -106,6 +106,7 @@ function createOverlayWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false, // Prevent Chromium from pausing/throttling requestAnimationFrame
     },
   });
 
@@ -124,6 +125,7 @@ function createOverlayWindow() {
   overlayWindow.webContents.on('render-process-gone', (_event, details) => {
     console.warn(`[R7 Reliability] Overlay render process gone: reason="${details.reason}", exitCode=${details.exitCode}. Auto-recreating window...`);
     isRendererReady = false;
+    isAnimationPlaying = false;
     setTimeout(() => {
       if (!isQuitting) createOverlayWindow();
     }, 1000);
@@ -272,7 +274,20 @@ function triggerReminderAnimation(message: string, voiceText: string) {
   voiceEngine?.pause();
 
   overlayWindow.showInactive();
+  overlayWindow.moveTop();
   overlayWindow.webContents.send('trigger-animation', { message, voiceText });
+
+  // Safety watchdog: recover idle state if animation-complete IPC is ever dropped
+  setTimeout(() => {
+    if (isAnimationPlaying) {
+      console.warn('[R7 Main] Animation watchdog timeout reached (25s). Resetting idle state.');
+      isAnimationPlaying = false;
+      if (overlayWindow && !overlayWindow.isDestroyed()) {
+        overlayWindow.hide();
+      }
+      voiceEngine?.resume();
+    }
+  }, 25000);
 }
 
 function updateTrayMenu() {
@@ -394,25 +409,37 @@ function createTray() {
 function registerShortcuts() {
   console.log('[R7 Shortcuts] Registering global shortcuts...');
 
-  const primary = 'CommandOrControl+Alt+R';
-  globalShortcut.register(primary, () => {
+  const trigger = (name: string) => {
+    console.log(`[R7 Shortcut] ${name} pressed! Triggering Spider-Man.`);
     scheduler?.triggerImmediateTest();
-  });
+  };
 
-  const fallback = 'CommandOrControl+Alt+Shift+R';
-  globalShortcut.register(fallback, () => {
-    scheduler?.triggerImmediateTest();
-  });
+  const triggerShortcuts = [
+    { key: 'CommandOrControl+Alt+R', name: 'Ctrl+Alt+R' },
+    { key: 'Alt+Shift+R', name: 'Alt+Shift+R' },
+    { key: 'CommandOrControl+Alt+Shift+R', name: 'Ctrl+Alt+Shift+R' },
+    { key: 'CommandOrControl+Shift+R', name: 'Ctrl+Shift+R' },
+    { key: 'CommandOrControl+Alt+Space', name: 'Ctrl+Alt+Space' },
+  ];
 
-  const settingsShortcut = 'CommandOrControl+Alt+S';
-  globalShortcut.register(settingsShortcut, () => {
-    createOrShowSettingsWindow();
-  });
+  for (const s of triggerShortcuts) {
+    const ok = globalShortcut.register(s.key, () => trigger(s.name));
+    console.log(`[R7 Shortcuts] Registered "${s.key}" (${s.name}): ${ok ? 'SUCCESS' : 'FAILED (occupied by another app)'}`);
+  }
 
-  const settingsFallback = 'CommandOrControl+Shift+S';
-  globalShortcut.register(settingsFallback, () => {
-    createOrShowSettingsWindow();
-  });
+  const settingsShortcuts = [
+    { key: 'CommandOrControl+Alt+S', name: 'Ctrl+Alt+S' },
+    { key: 'CommandOrControl+Shift+S', name: 'Ctrl+Shift+S' },
+    { key: 'Alt+Shift+S', name: 'Alt+Shift+S' },
+  ];
+
+  for (const s of settingsShortcuts) {
+    const ok = globalShortcut.register(s.key, () => {
+      console.log(`[R7 Shortcut] ${s.name} pressed! Opening settings.`);
+      createOrShowSettingsWindow();
+    });
+    console.log(`[R7 Shortcuts] Registered "${s.key}" (${s.name}): ${ok ? 'SUCCESS' : 'FAILED'}`);
+  }
 }
 
 // Setup Voice Engine
