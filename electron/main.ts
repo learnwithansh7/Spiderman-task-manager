@@ -259,7 +259,7 @@ function createCardWindow(): BrowserWindow {
   const primaryDisplay = screen.getPrimaryDisplay();
   const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
   const cardWidth = 320;
-  const cardHeight = 380;
+  const cardHeight = 360;
   const targetX = Math.round(screenWidth * 0.82 - 360);
   const targetY = Math.round(screenHeight * 0.14 + 50);
   const posX = Math.max(10, Math.min(targetX, screenWidth - cardWidth - 10));
@@ -323,7 +323,7 @@ function showCardWindow(): void {
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
     const cardWidth = 320;
-    const cardHeight = 380;
+    const cardHeight = 360;
     const targetX = Math.round(screenWidth * 0.82 - 360);
     const targetY = Math.round(screenHeight * 0.14 + 50);
     const posX = Math.max(10, Math.min(targetX, screenWidth - cardWidth - 10));

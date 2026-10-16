@@ -46,7 +46,6 @@ export const CardApp: React.FC = () => {
       }
       console.log(`[Card] Toggling task id=${id}`);
       await window.tasksApi.toggle(id);
-      // Safety net refresh
       const list = await window.tasksApi.list();
       if (Array.isArray(list)) setTasks(list);
     } catch (err: any) {
@@ -69,63 +68,60 @@ export const CardApp: React.FC = () => {
   return (
     <div
       style={{
-        width: 320,
-        height: 380,
-        backgroundColor: '#090d16',
-        border: '1.5px solid #0284c7',
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#111827',
+        border: '1px solid #1e293b',
         borderRadius: 12,
-        boxShadow: '0 16px 36px rgba(0, 0, 0, 0.65), 0 0 20px rgba(2, 132, 199, 0.35)',
+        padding: '16px 18px',
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.25)',
         display: 'flex',
         flexDirection: 'column',
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
         color: '#f8fafc',
-        overflow: 'hidden',
         boxSizing: 'border-box',
+        overflow: 'hidden',
         userSelect: 'none',
       }}
     >
-      {/* 1. Header with Title & Counter */}
+      {/* 1. HEADER: Title and Counter matching old card's header style */}
       <div
         style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '12px 14px',
-          borderBottom: '1px solid #1e293b',
-          backgroundColor: '#0f172a',
+          marginBottom: 10,
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 16 }}>🕷️</span>
-          <h2 style={{ fontSize: 13, fontWeight: 700, margin: 0, color: '#f8fafc', letterSpacing: '-0.2px' }}>
-            Today's tasks
-          </h2>
-        </div>
-        <div
+        <span
           style={{
-            fontSize: 11,
             fontWeight: 700,
-            color: '#38bdf8',
-            backgroundColor: 'rgba(2, 132, 199, 0.2)',
-            padding: '3px 10px',
-            borderRadius: 12,
-            border: '1px solid rgba(56, 189, 248, 0.3)',
+            fontSize: 14,
+            color: '#f8fafc',
+            letterSpacing: '-0.2px',
+          }}
+        >
+          Today's tasks
+        </span>
+        <span
+          style={{
+            fontSize: 12,
+            color: '#94a3b8',
           }}
         >
           {counterText}
-        </div>
+        </span>
       </div>
 
-      {/* 2. Error message banner if any failure occurs */}
+      {/* 2. ERROR BANNER (if any failure occurs) */}
       {errorMsg && (
         <div
           style={{
             color: '#ef4444',
             fontSize: 11,
-            padding: '4px 12px',
-            backgroundColor: 'rgba(239, 68, 68, 0.15)',
-            borderBottom: '1px solid rgba(239, 68, 68, 0.3)',
+            padding: '3px 0',
+            marginBottom: 6,
             flexShrink: 0,
           }}
         >
@@ -133,36 +129,24 @@ export const CardApp: React.FC = () => {
         </div>
       )}
 
-      {/* 3. Task List with Checkboxes */}
+      {/* 3. TASK LIST: Simple rows with checkbox and title */}
       <div
         style={{
           flex: 1,
           overflowY: 'auto',
-          padding: '10px 12px',
           display: 'flex',
           flexDirection: 'column',
           gap: 6,
+          paddingRight: 2,
         }}
       >
         {loading ? (
-          <div style={{ textAlign: 'center', color: '#64748b', fontSize: 12, padding: '24px 0' }}>
+          <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12, padding: '24px 0' }}>
             Loading...
           </div>
         ) : tasks.length === 0 ? (
-          <div
-            style={{
-              padding: '36px 12px',
-              textAlign: 'center',
-              color: '#64748b',
-              fontSize: 12,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <span style={{ fontSize: 24 }}>🕸️</span>
-            <span>No tasks yet</span>
+          <div style={{ textAlign: 'center', color: '#94a3b8', fontSize: 12, padding: '32px 0' }}>
+            No tasks yet
           </div>
         ) : (
           tasks.map((task) => (
@@ -172,49 +156,49 @@ export const CardApp: React.FC = () => {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
-                padding: '8px 10px',
-                borderRadius: 8,
-                backgroundColor: task.done ? 'rgba(17, 24, 39, 0.5)' : '#111827',
-                border: task.done ? '1px solid #1e293b' : '1px solid #334155',
+                gap: 9,
+                padding: '6px 8px',
+                borderRadius: 6,
                 cursor: 'pointer',
-                transition: 'background-color 0.15s ease',
+                backgroundColor: task.done ? 'rgba(17, 24, 39, 0.4)' : '#090d16',
+                border: '1px solid #1e293b',
+                transition: 'background-color 0.12s ease',
               }}
               onMouseOver={(e) => {
-                e.currentTarget.style.backgroundColor = task.done ? 'rgba(30, 41, 59, 0.5)' : '#1e293b';
+                e.currentTarget.style.backgroundColor = task.done ? 'rgba(30, 41, 59, 0.4)' : '#1e293b';
               }}
               onMouseOut={(e) => {
-                e.currentTarget.style.backgroundColor = task.done ? 'rgba(17, 24, 39, 0.5)' : '#111827';
+                e.currentTarget.style.backgroundColor = task.done ? 'rgba(17, 24, 39, 0.4)' : '#090d16';
               }}
             >
-              {/* Checkbox */}
+              {/* Checkbox styled with old input colors */}
               <div
                 style={{
-                  width: 18,
-                  height: 18,
-                  borderRadius: 5,
-                  border: task.done ? '1px solid #4ade80' : '1px solid #64748b',
-                  backgroundColor: task.done ? '#166534' : 'transparent',
+                  width: 16,
+                  height: 16,
+                  borderRadius: 4,
+                  border: task.done ? '1px solid #38bdf8' : '1px solid #334155',
+                  backgroundColor: task.done ? '#0284c7' : '#090d16',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   flexShrink: 0,
                   color: '#ffffff',
-                  fontSize: 11,
+                  fontSize: 10,
                   fontWeight: 700,
-                  transition: 'all 0.15s ease',
+                  transition: 'all 0.12s ease',
                 }}
               >
                 {task.done && '✓'}
               </div>
 
-              {/* Title (crossed out when done) */}
+              {/* Task title (Hindi / Unicode supported, wraps/truncates cleanly) */}
               <span
                 style={{
-                  fontSize: 12,
+                  fontSize: 13,
                   color: task.done ? '#64748b' : '#f8fafc',
                   textDecoration: task.done ? 'line-through' : 'none',
-                  lineHeight: '1.3',
+                  lineHeight: '1.35',
                   wordBreak: 'break-word',
                   overflow: 'hidden',
                   display: '-webkit-box',
@@ -229,12 +213,10 @@ export const CardApp: React.FC = () => {
         )}
       </div>
 
-      {/* 4. Footer with Close Button */}
+      {/* 4. FOOTER: One Close button matching old card's main button style */}
       <div
         style={{
-          padding: '10px 14px',
-          borderTop: '1px solid #1e293b',
-          backgroundColor: '#0f172a',
+          marginTop: 12,
           display: 'flex',
           justifyContent: 'flex-end',
           flexShrink: 0,
@@ -247,17 +229,17 @@ export const CardApp: React.FC = () => {
             backgroundColor: '#0284c7',
             backgroundImage: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
             color: '#ffffff',
-            border: '1px solid #38bdf8',
+            border: 'none',
             borderRadius: 6,
-            padding: '6px 20px',
+            padding: '6px 18px',
             fontSize: 12,
             fontWeight: 700,
             cursor: 'pointer',
-            boxShadow: '0 2px 6px rgba(2, 132, 199, 0.4)',
+            boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)',
             transition: 'all 0.15s ease',
           }}
           onMouseOver={(e) => {
-            e.currentTarget.style.filter = 'brightness(1.1)';
+            e.currentTarget.style.filter = 'brightness(1.08)';
           }}
           onMouseOut={(e) => {
             e.currentTarget.style.filter = 'none';
