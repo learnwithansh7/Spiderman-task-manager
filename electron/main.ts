@@ -7,6 +7,7 @@ import { isForegroundAppFullscreen } from './system';
 import { VoskHelperEngine, killStaleVoiceHelpers } from './voice/voskEngine';
 import { AudioDevice, WakeWordError } from './voice/types';
 import { AnimationSequencer } from './sequencer';
+import { TaskService } from './tasks';
 
 // Crash Resilience: Global Unhandled Exceptions and Rejections
 process.on('uncaughtException', (err) => {
@@ -39,6 +40,7 @@ let scheduler: ReminderScheduler | null = null;
 let voiceEngine: VoskHelperEngine | null = null;
 let sequencer: AnimationSequencer = new AnimationSequencer();
 let availableAudioDevices: AudioDevice[] = [];
+let taskService: TaskService | null = null;
 
 let isQuitting = false;
 
@@ -557,6 +559,46 @@ ipcMain.handle('get-voice-models', () => {
   return voiceEngine ? voiceEngine.getInstalledModels() : [];
 });
 
+// Tasks IPC Handlers with sender validation
+ipcMain.handle('tasks:list', (event, options) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed() || (win !== overlayWindow && win !== settingsWindow)) {
+    console.warn('[Tasks] tasks:list rejected: unauthorized sender.');
+    throw new Error('Forbidden');
+  }
+  return taskService ? taskService.list(options) : [];
+});
+
+ipcMain.handle('tasks:add', async (event, title: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed() || (win !== overlayWindow && win !== settingsWindow)) {
+    console.warn('[Tasks] tasks:add rejected: unauthorized sender.');
+    throw new Error('Forbidden');
+  }
+  if (!taskService) throw new Error('Task service not available');
+  return await taskService.add(title);
+});
+
+ipcMain.handle('tasks:remove', async (event, id: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed() || (win !== overlayWindow && win !== settingsWindow)) {
+    console.warn('[Tasks] tasks:remove rejected: unauthorized sender.');
+    throw new Error('Forbidden');
+  }
+  if (!taskService) throw new Error('Task service not available');
+  return await taskService.remove(id);
+});
+
+ipcMain.handle('tasks:toggle', async (event, id: string) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  if (!win || win.isDestroyed() || (win !== overlayWindow && win !== settingsWindow)) {
+    console.warn('[Tasks] tasks:toggle rejected: unauthorized sender.');
+    throw new Error('Forbidden');
+  }
+  if (!taskService) throw new Error('Task service not available');
+  return await taskService.toggle(id);
+});
+
 // App Lifecycle
 app.whenReady().then(() => {
   console.log('[R7 Lifecycle] App ready event fired.');
@@ -590,6 +632,18 @@ app.whenReady().then(() => {
   const initialSettings = scheduler.getSettings();
   applyLoginItemSettings(initialSettings.startWithWindows);
 
+  // Initialize TaskService for SpiderTasks
+  taskService = new TaskService();
+  taskService.on('changed', () => {
+    const list = taskService?.list() || [];
+    if (overlayWindow && !overlayWindow.isDestroyed()) {
+      overlayWindow.webContents.send('tasks:changed', list);
+    }
+    if (settingsWindow && !settingsWindow.isDestroyed()) {
+      settingsWindow.webContents.send('tasks:changed', list);
+    }
+  });
+
   // Start voice helper asynchronously inside try/catch after tray, shortcuts, and overlay are ready
   const startVoiceSafely = async () => {
     try {
@@ -616,10 +670,11 @@ app.whenReady().then(() => {
 });
 
 app.on('will-quit', () => {
-  console.log('[R7 Lifecycle] will-quit: stopping voice engine and scheduler.');
+  console.log('[R7 Lifecycle] will-quit: stopping voice engine, scheduler, and taskService.');
   voiceEngine?.stop();
   killStaleVoiceHelpers();
   scheduler?.stop();
+  taskService?.destroy();
   globalShortcut.unregisterAll();
 });
 

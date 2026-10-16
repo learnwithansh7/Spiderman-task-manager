@@ -55,3 +55,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getVoiceDevices: () => ipcRenderer.invoke('get-voice-devices'),
   getVoiceModels: () => ipcRenderer.invoke('get-voice-models'),
 });
+
+// Tasks API Preload Bridge
+contextBridge.exposeInMainWorld('tasksApi', {
+  list: (options?: { includeArchived?: boolean }) => ipcRenderer.invoke('tasks:list', options),
+  add: (title: string) => ipcRenderer.invoke('tasks:add', title),
+  remove: (id: string) => ipcRenderer.invoke('tasks:remove', id),
+  toggle: (id: string) => ipcRenderer.invoke('tasks:toggle', id),
+  onChanged: (callback: (tasks?: any[]) => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, tasks: any[]) => callback(tasks);
+    ipcRenderer.on('tasks:changed', sub);
+    return () => {
+      ipcRenderer.removeListener('tasks:changed', sub);
+    };
+  },
+});
+
