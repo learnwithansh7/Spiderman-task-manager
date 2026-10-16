@@ -33,6 +33,9 @@ export const OverlayApp: React.FC = () => {
   const springVelRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const voicePlayedRef = useRef<boolean>(false);
+  const currentCorrelationIdRef = useRef<string>('#0');
+  const startedReportedRef = useRef<boolean>(false);
+  const voiceTextRef = useRef<string>('');
 
   const threadLengthRef = useRef<number>(0);
   const windowHeightRef = useRef<number>(window.innerHeight);
@@ -65,7 +68,9 @@ export const OverlayApp: React.FC = () => {
   const startExit = useCallback((reason: string) => {
     if (phaseRef.current === 'EXITING' || phaseRef.current === 'IDLE') return;
 
-    console.log(`[R3 Motion] Starting exit/retract (trigger: ${reason}).`);
+    const corrId = currentCorrelationIdRef.current;
+    console.log(`[Seq] [${corrId}] [${new Date().toISOString()}] Starting exit. State change: LOOP -> OUTRO (reason: ${reason}).`);
+    window.electronAPI?.send?.('seq-state', { correlationId: corrId, state: 'OUTRO' });
     stopVoice();
 
     if (autoExitTimerRef.current) {
@@ -104,16 +109,18 @@ export const OverlayApp: React.FC = () => {
 
   // Start the animation sequence
   const startAnimation = useCallback((msg?: string) => {
+    const corrId = currentCorrelationIdRef.current;
     if (phaseRef.current !== 'IDLE') {
-      console.log('[R3 Motion] Animation already playing. Ignoring duplicate trigger.');
+      console.log(`[Seq] [${corrId}] [${new Date().toISOString()}] Animation already playing (state=${phaseRef.current}). Ignoring duplicate trigger.`);
       return;
     }
 
     const reminderMsg = msg || MOTION_CONFIG.noteCard.defaultMessage;
     setMessage(reminderMsg);
     voicePlayedRef.current = false;
+    startedReportedRef.current = false;
 
-    console.log(`[R3 Motion] Starting descent animation for: "${reminderMsg}"`);
+    console.log(`[Seq] [${corrId}] [${new Date().toISOString()}] Animation play() called: starting descent (state=INTRO).`);
     setThreadLength(0);
     threadLengthRef.current = 0;
     setSwayAngleDeg(0);
@@ -134,21 +141,39 @@ export const OverlayApp: React.FC = () => {
     console.log('[Renderer] OverlayApp mounted. Notifying main process (renderer-ready).');
     window.electronAPI?.send('renderer-ready');
 
-    if (window.electronAPI?.onTriggerAnimation) {
-      console.log('[Renderer] Subscribed to trigger-animation events.');
-      const unsubTrigger = window.electronAPI.onTriggerAnimation((payload) => {
-        console.log('[Renderer] Received "trigger-animation" event over IPC! Starting animation.');
+    const cleanups: Array<() => void> = [];
+
+    // Primary sequencer handshake listener: seq-play
+    if (window.electronAPI?.on) {
+      const unsubSeq = window.electronAPI.on('seq-play', (payload: any) => {
+        const corrId = payload?.correlationId || '#1';
+        currentCorrelationIdRef.current = corrId;
+        voiceTextRef.current = payload?.voiceText || payload?.message || '';
+        console.log(`[Seq] [${corrId}] [${new Date().toISOString()}] Renderer received seq-play: "${payload?.message}"`);
         startAnimation(payload?.message);
       });
-      const unsubExit = window.electronAPI.onTriggerExit?.(() => {
+      cleanups.push(unsubSeq);
+    }
+
+    if (window.electronAPI?.onTriggerAnimation) {
+      const unsubTrigger = window.electronAPI.onTriggerAnimation((payload) => {
+        console.log('[Renderer] Received legacy "trigger-animation" event over IPC! Starting animation.');
+        startAnimation(payload?.message);
+      });
+      cleanups.push(unsubTrigger);
+    }
+
+    if (window.electronAPI?.onTriggerExit) {
+      const unsubExit = window.electronAPI.onTriggerExit(() => {
         console.log('[Renderer] Received "trigger-exit" event over IPC! Calling startExit().');
         startExit('IPC test trigger');
       });
-      return () => {
-        unsubTrigger();
-        unsubExit?.();
-      };
+      cleanups.push(unsubExit);
     }
+
+    return () => {
+      cleanups.forEach((c) => c());
+    };
   }, [startAnimation, startExit]);
 
   // Animation physics loop
@@ -166,6 +191,14 @@ export const OverlayApp: React.FC = () => {
       if (currentPhase === 'DESCENDING') {
         const progress = Math.min(1, elapsed / MOTION_CONFIG.timing.descentDurationMs);
         const eased = easeOutCubic(progress);
+
+        // First visual frame confirmation (handshake response)
+        if (!startedReportedRef.current) {
+          startedReportedRef.current = true;
+          const corrId = currentCorrelationIdRef.current;
+          console.log(`[Seq] [${corrId}] [${new Date().toISOString()}] First visual frame painted ("playing" event). Replying: seq-started.`);
+          window.electronAPI?.send?.('seq-started', { correlationId: corrId });
+        }
 
         // Thread lengthens as character descends
         const currentDescentL = targetLength * eased;
@@ -190,15 +223,19 @@ export const OverlayApp: React.FC = () => {
         }
 
         if (progress >= 1) {
-          console.log('[R3 Motion] Descent complete. Starting sway phase and presenting note card.');
+          const corrId = currentCorrelationIdRef.current;
+          console.log(`[Seq] [${corrId}] [${new Date().toISOString()}] Descent complete. State change: INTRO -> LOOP.`);
+          window.electronAPI?.send?.('seq-state', { correlationId: corrId, state: 'LOOP' });
           setPhase('SWAYING');
           phaseStartTimeRef.current = time;
 
           // Play voice reminder ONCE when note card appears
           if (!voicePlayedRef.current) {
             voicePlayedRef.current = true;
-            console.log('[R3 Voice] Triggering spoken reminder voice once.');
-            speakReminder(message, isMuted);
+            const textToSpeak = voiceTextRef.current || message;
+            console.log(`[Seq] [${corrId}] [${new Date().toISOString()}] Voice greeting started: "${textToSpeak}"`);
+            window.electronAPI?.send?.('seq-voice-started', { correlationId: corrId, text: textToSpeak });
+            speakReminder(textToSpeak, isMuted);
           }
 
           // Start 15s auto-exit timer
@@ -248,13 +285,15 @@ export const OverlayApp: React.FC = () => {
         setCardOpacity((prev) => Math.max(0, prev - dt * 6));
 
         if (progress >= 1) {
-          console.log('[R3 Motion] Exit complete. Resetting to IDLE and hiding window.');
+          const corrId = currentCorrelationIdRef.current;
+          console.log(`[Seq] [${corrId}] [${new Date().toISOString()}] Exit complete. State change: OUTRO -> HIDDEN.`);
           setPhase('IDLE');
           setThreadLength(0);
           threadLengthRef.current = 0;
           setSwayAngleDeg(0);
           setCardOpacity(0);
           setSpringProgress(0);
+          window.electronAPI?.send?.('seq-complete', { correlationId: corrId });
           window.electronAPI?.notifyAnimationComplete();
         }
       }

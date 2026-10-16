@@ -6,6 +6,7 @@ import { ReminderTypeKey, AppSettings, loadSettings, saveSettings } from './sett
 import { isForegroundAppFullscreen } from './system';
 import { VoskHelperEngine, killStaleVoiceHelpers } from './voice/voskEngine';
 import { AudioDevice, WakeWordError } from './voice/types';
+import { AnimationSequencer } from './sequencer';
 
 // Crash Resilience: Global Unhandled Exceptions and Rejections
 process.on('uncaughtException', (err) => {
@@ -36,16 +37,10 @@ let settingsWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let scheduler: ReminderScheduler | null = null;
 let voiceEngine: VoskHelperEngine | null = null;
+let sequencer: AnimationSequencer = new AnimationSequencer();
 let availableAudioDevices: AudioDevice[] = [];
 
-let isAnimationPlaying = false;
-let isRendererReady = false;
 let isQuitting = false;
-let pendingTriggerPayload: { message: string; voiceText: string } | null = null;
-
-// Self-trigger prevention & cooldown
-let lastSequenceEndTime = 0;
-const POST_SEQUENCE_COOLDOWN_MS = 3000;
 
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -107,6 +102,7 @@ function createOverlayWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       backgroundThrottling: false, // Prevent Chromium from pausing/throttling requestAnimationFrame
+      autoplayPolicy: 'no-user-gesture-required',
     },
   });
 
@@ -124,8 +120,7 @@ function createOverlayWindow() {
 
   overlayWindow.webContents.on('render-process-gone', (_event, details) => {
     console.warn(`[R7 Reliability] Overlay render process gone: reason="${details.reason}", exitCode=${details.exitCode}. Auto-recreating window...`);
-    isRendererReady = false;
-    isAnimationPlaying = false;
+    sequencer.hideAndReset();
     setTimeout(() => {
       if (!isQuitting) createOverlayWindow();
     }, 1000);
@@ -159,8 +154,10 @@ function createOverlayWindow() {
 
   overlayWindow.on('closed', () => {
     overlayWindow = null;
+    sequencer.setOverlayWindow(null);
   });
 
+  sequencer.setOverlayWindow(overlayWindow);
   const bounds = overlayWindow.getBounds();
   console.log(`[R7 Window] Overlay window created (hidden) at (${bounds.x}, ${bounds.y}) [${bounds.width}x${bounds.height}].`);
 }
@@ -251,43 +248,7 @@ function createOrShowSettingsWindow(): BrowserWindow {
 }
 
 function triggerReminderAnimation(message: string, voiceText: string) {
-  if (isAnimationPlaying) {
-    console.log('[R7 Main] Animation already playing! Ignoring duplicate trigger.');
-    return;
-  }
-
-  if (!overlayWindow || overlayWindow.isDestroyed()) {
-    console.warn('[R7 Main] Overlay window not available.');
-    return;
-  }
-
-  if (!isRendererReady) {
-    console.log('[R7 Main] Renderer not ready yet. Queuing trigger...');
-    pendingTriggerPayload = { message, voiceText };
-    return;
-  }
-
-  isAnimationPlaying = true;
-  console.log(`[R7 Main] Starting reminder animation for: "${message}"`);
-
-  // Pause voice listener while character speaks/animates so he cannot trigger himself
-  voiceEngine?.pause();
-
-  overlayWindow.showInactive();
-  overlayWindow.moveTop();
-  overlayWindow.webContents.send('trigger-animation', { message, voiceText });
-
-  // Safety watchdog: recover idle state if animation-complete IPC is ever dropped
-  setTimeout(() => {
-    if (isAnimationPlaying) {
-      console.warn('[R7 Main] Animation watchdog timeout reached (25s). Resetting idle state.');
-      isAnimationPlaying = false;
-      if (overlayWindow && !overlayWindow.isDestroyed()) {
-        overlayWindow.hide();
-      }
-      voiceEngine?.resume();
-    }
-  }, 25000);
+  sequencer.trigger('manual', message, voiceText);
 }
 
 function updateTrayMenu() {
@@ -450,38 +411,11 @@ function setupVoiceEngine(settings: AppSettings) {
     alsoSpider: settings.voiceAlsoSpider,
     deviceId: settings.voiceDeviceId,
   });
+  sequencer.setVoiceEngine(voiceEngine);
 
   voiceEngine.onDetected((phrase, conf) => {
     console.log(`[Voice] Detected phrase: "${phrase}" (conf: ${conf})`);
-
-    const currentSettings = scheduler ? scheduler.getSettings() : loadSettings();
-
-    if (!currentSettings.voiceActivationEnabled) {
-      console.log('[Voice] Decision: Ignored detection. Reason: voice off');
-      return;
-    }
-
-    if (voiceEngine?.isPausedState()) {
-      console.log('[Voice] Decision: Ignored detection. Reason: paused');
-      return;
-    }
-
-    if (isAnimationPlaying) {
-      console.log('[Voice] Decision: Ignored detection. Reason: sequence playing');
-      return;
-    }
-
-    const now = Date.now();
-    if (now - lastSequenceEndTime < POST_SEQUENCE_COOLDOWN_MS) {
-      console.log('[Voice] Decision: Ignored detection. Reason: cooldown');
-      return;
-    }
-
-    console.log('[Voice] Decision: Started the sequence');
-    const greeting = 'Hey! Spider-Man here with your reminder.';
-    const type = scheduler ? scheduler.getNextReminderInfo().type : 'water';
-    const config = currentSettings.reminderTypes[type];
-    triggerReminderAnimation(`${greeting} ${config.message}`, `${greeting} ${config.voiceText}`);
+    sequencer.trigger('voice');
   });
 
   voiceEngine.onDevices((devices) => {
@@ -524,12 +458,24 @@ function setupVoiceEngine(settings: AppSettings) {
 // IPC Handlers
 ipcMain.on('renderer-ready', () => {
   console.log('[R7 Main] Overlay renderer announced ready for animation triggers.');
-  isRendererReady = true;
-  if (pendingTriggerPayload) {
-    const payload = pendingTriggerPayload;
-    pendingTriggerPayload = null;
-    triggerReminderAnimation(payload.message, payload.voiceText);
-  }
+  sequencer.setRendererReady();
+});
+
+ipcMain.on('seq-started', (_event, { correlationId }) => {
+  sequencer.handleRendererStarted(correlationId);
+});
+
+ipcMain.on('seq-state', (_event, { correlationId, state }) => {
+  sequencer.handleStateChange(correlationId, state);
+});
+
+ipcMain.on('seq-voice-started', (_event, { correlationId, text }) => {
+  sequencer.handleVoiceStarted(correlationId, text);
+});
+
+ipcMain.on('seq-complete', (_event, { correlationId }) => {
+  sequencer.handleComplete(correlationId);
+  updateTrayMenu();
 });
 
 ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
@@ -550,21 +496,10 @@ ipcMain.on('reminder-action', (_event, action: 'done' | 'snooze', snoozeMinutes?
 });
 
 ipcMain.on('animation-complete', () => {
-  console.log('[R7 Main] Animation complete received. Hiding overlay window (idle).');
-  isAnimationPlaying = false;
-  lastSequenceEndTime = Date.now();
-
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.hide();
-    overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+  if (sequencer.getState() !== 'HIDDEN') {
+    sequencer.handleComplete('#legacy');
+    updateTrayMenu();
   }
-
-  // Resume voice listener 3 seconds afterwards to guarantee no self-triggering
-  setTimeout(() => {
-    if (!isAnimationPlaying && voiceEngine) {
-      voiceEngine.resume();
-    }
-  }, POST_SEQUENCE_COOLDOWN_MS);
 });
 
 ipcMain.handle('get-settings', () => {
@@ -632,9 +567,10 @@ app.whenReady().then(() => {
 
   // Initialize reminder scheduler engine
   scheduler = new ReminderScheduler((type: ReminderTypeKey, message: string, voiceText: string) => {
-    triggerReminderAnimation(message, voiceText);
+    sequencer.trigger(`scheduler: ${type}`, message, voiceText);
     updateTrayMenu();
   });
+  sequencer.setScheduler(scheduler);
   scheduler.start();
 
   createTray();
