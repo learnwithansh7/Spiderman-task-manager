@@ -242,11 +242,8 @@ export const OverlayApp: React.FC = () => {
             }
           }
 
-          // Start 15s auto-exit timer
-          autoExitTimerRef.current = setTimeout(() => {
-            console.log('[R3 Motion] 15s timeout reached without interaction. Auto-climbing back.');
-            startExit('15s timeout');
-          }, MOTION_CONFIG.timing.autoExitMs);
+          // He stays until closed (Close button, voice dismiss, or TASK_MODE_MAX_OPEN_MS)
+          console.log(`[Seq] [${corrId}] Character in LOOP: staying open until user closes.`);
         }
       } else if (currentPhase === 'SWAYING') {
         const tSec = elapsed / 1000;

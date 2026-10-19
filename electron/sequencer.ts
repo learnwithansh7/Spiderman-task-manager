@@ -5,6 +5,8 @@ import { loadSettings } from './settings';
 
 export type SequencerState = 'HIDDEN' | 'INTRO' | 'LOOP' | 'OUTRO';
 
+export const TASK_MODE_MAX_OPEN_MS = 30 * 60 * 1000; // 30 minutes in milliseconds
+
 export class AnimationSequencer {
   private state: SequencerState = 'HIDDEN';
   private triggerCount = 0;
@@ -14,11 +16,11 @@ export class AnimationSequencer {
   private isRendererReady = false;
   private pendingPayload: { id: string; message: string; voiceText: string } | null = null;
   private handshakeTimer: NodeJS.Timeout | null = null;
-  private watchdogTimer: NodeJS.Timeout | null = null;
+  private stateWatchdogTimer: NodeJS.Timeout | null = null;
+  private taskModeSafetyTimer: NodeJS.Timeout | null = null;
   private lastSequenceEndTime = 0;
   private readonly cooldownMs = 3000;
   private readonly handshakeTimeoutMs = 1500;
-  private readonly fullSequenceMaxMs = 24000; // ~18.5s full sequence + 5s buffer
 
   constructor() {
     this.state = 'HIDDEN';
@@ -145,14 +147,14 @@ export class AnimationSequencer {
       }
     }, this.handshakeTimeoutMs);
 
-    // Watchdog timer: force return to HIDDEN if non-idle longer than sequence length + 5s
-    if (this.watchdogTimer) clearTimeout(this.watchdogTimer);
-    this.watchdogTimer = setTimeout(() => {
-      if (this.state !== 'HIDDEN') {
-        console.warn(`[Seq] [${id}] [${new Date().toISOString()}] Watchdog expired (${this.fullSequenceMaxMs}ms). Forcing sequencer back to HIDDEN.`);
-        this.handleComplete(id);
+    // Watchdog timer: protect against getting stuck in INTRO (10 seconds)
+    if (this.stateWatchdogTimer) clearTimeout(this.stateWatchdogTimer);
+    this.stateWatchdogTimer = setTimeout(() => {
+      if (this.state === 'INTRO') {
+        console.warn(`[Seq] [${id}] [${new Date().toISOString()}] INTRO watchdog expired (10000ms). Forcing sequencer back to HIDDEN.`);
+        this.hideAndReset();
       }
-    }, this.fullSequenceMaxMs);
+    }, 10000);
   }
 
   public handleRendererStarted(id: string): void {
@@ -163,10 +165,47 @@ export class AnimationSequencer {
     console.log(`[Seq] [${id}] [${new Date().toISOString()}] Handshake confirmed: renderer visual frame is active ("playing" event).`);
   }
 
+  public closeNormally(reason: string): void {
+    if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
+      console.log(`[Seq] [${new Date().toISOString()}] Triggering normal exit (OUTRO): reason="${reason}"`);
+      this.overlayWindow.webContents.send('trigger-exit');
+    }
+  }
+
   public handleStateChange(id: string, newState: SequencerState): void {
     const oldState = this.state;
     this.state = newState;
     console.log(`[Seq] [${id}] [${new Date().toISOString()}] State change: ${oldState} -> ${newState}`);
+
+    // Clear previous state watchdog timer
+    if (this.stateWatchdogTimer) {
+      clearTimeout(this.stateWatchdogTimer);
+      this.stateWatchdogTimer = null;
+    }
+
+    if (newState === 'LOOP') {
+      // He stays until closed. Start 30-minute safety limit.
+      if (this.taskModeSafetyTimer) clearTimeout(this.taskModeSafetyTimer);
+      this.taskModeSafetyTimer = setTimeout(() => {
+        if (this.state === 'LOOP') {
+          console.warn(`[Seq] [${id}] [${new Date().toISOString()}] Safety limit reached (TASK_MODE_MAX_OPEN_MS = ${TASK_MODE_MAX_OPEN_MS}ms). Closing character normally (OUTRO).`);
+          this.closeNormally('Safety limit (TASK_MODE_MAX_OPEN_MS)');
+        }
+      }, TASK_MODE_MAX_OPEN_MS);
+    } else if (newState === 'OUTRO') {
+      // Clear safety timer when leaving LOOP
+      if (this.taskModeSafetyTimer) {
+        clearTimeout(this.taskModeSafetyTimer);
+        this.taskModeSafetyTimer = null;
+      }
+      // Watchdog timer: protect against getting stuck in OUTRO (10 seconds)
+      this.stateWatchdogTimer = setTimeout(() => {
+        if (this.state === 'OUTRO') {
+          console.warn(`[Seq] [${id}] [${new Date().toISOString()}] OUTRO watchdog expired (10000ms). Forcing sequencer back to HIDDEN.`);
+          this.handleComplete(id);
+        }
+      }, 10000);
+    }
   }
 
   public handleVoiceStarted(id: string, text: string): void {
@@ -178,9 +217,13 @@ export class AnimationSequencer {
       clearTimeout(this.handshakeTimer);
       this.handshakeTimer = null;
     }
-    if (this.watchdogTimer) {
-      clearTimeout(this.watchdogTimer);
-      this.watchdogTimer = null;
+    if (this.stateWatchdogTimer) {
+      clearTimeout(this.stateWatchdogTimer);
+      this.stateWatchdogTimer = null;
+    }
+    if (this.taskModeSafetyTimer) {
+      clearTimeout(this.taskModeSafetyTimer);
+      this.taskModeSafetyTimer = null;
     }
 
     const oldState = this.state;
@@ -206,9 +249,13 @@ export class AnimationSequencer {
       clearTimeout(this.handshakeTimer);
       this.handshakeTimer = null;
     }
-    if (this.watchdogTimer) {
-      clearTimeout(this.watchdogTimer);
-      this.watchdogTimer = null;
+    if (this.stateWatchdogTimer) {
+      clearTimeout(this.stateWatchdogTimer);
+      this.stateWatchdogTimer = null;
+    }
+    if (this.taskModeSafetyTimer) {
+      clearTimeout(this.taskModeSafetyTimer);
+      this.taskModeSafetyTimer = null;
     }
     this.state = 'HIDDEN';
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
