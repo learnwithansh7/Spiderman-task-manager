@@ -86,10 +86,9 @@ export function getModelsDirectory(baseDir: string): string {
 export function killStaleVoiceHelpers(): void {
   try {
     if (process.platform === 'win32') {
-      execSync(
-        'powershell.exe -NoProfile -Command "Get-CimInstance Win32_Process -Filter \\"Name=\'python.exe\'\\" | Where-Object { $_.CommandLine -like \'*voice_helper.py*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"',
-        { stdio: 'ignore', timeout: 5000 }
-      );
+      const psCmd = 'Get-CimInstance Win32_Process -Filter "Name=\'python.exe\'" | Where-Object { $_.CommandLine -like \'*voice_helper.py*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }';
+      const b64 = Buffer.from(psCmd, 'utf16le').toString('base64');
+      execSync(`powershell.exe -NoProfile -EncodedCommand ${b64}`, { stdio: 'ignore', timeout: 5000 });
     }
   } catch {
     // Ignore if no process was found or command fails
