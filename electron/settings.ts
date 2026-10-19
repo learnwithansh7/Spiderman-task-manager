@@ -39,6 +39,10 @@ export interface AppSettings {
 
 export function getSettingsFilePath(): string {
   try {
+    const srDir = path.join(process.env.APPDATA || '', 'spider-reminder');
+    if (fs.existsSync(srDir)) {
+      return path.join(srDir, 'settings.json');
+    }
     if (app && app.getPath) {
       const userData = app.getPath('userData');
       if (!fs.existsSync(userData)) {
@@ -82,7 +86,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   lastReminderType: 'water',
 
   // Milestone V1 Defaults
-  voiceActivationEnabled: false,          // Voice activation is OFF by default
+  voiceActivationEnabled: true,          // Voice activation is ON by default
   voiceDeviceId: null,
   voiceSensitivity: 0.70,
   voiceAlsoSpider: false,                 // OFF by default

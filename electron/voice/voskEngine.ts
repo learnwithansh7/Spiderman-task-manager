@@ -33,6 +33,52 @@ export function getProjectRoot(): string {
 }
 
 /**
+ * Resolves the base directory containing tools/voice and models.
+ * Prioritizes packaged extraResources, then project root, then dev repository path.
+ */
+export function getVoiceBaseDir(): string {
+  // 1. Packaged extraResources in production
+  if (process.resourcesPath && fs.existsSync(path.join(process.resourcesPath, 'tools', 'voice', 'voice_helper.py'))) {
+    return process.resourcesPath;
+  }
+  // 2. Traversing up to project root
+  const projRoot = getProjectRoot();
+  if (fs.existsSync(path.join(projRoot, 'tools', 'voice', 'voice_helper.py'))) {
+    return projRoot;
+  }
+  // 3. Fallback to known dev directory if running installed app on development machine
+  const devDir = path.resolve('D:\\Projects\\SpiderReminder');
+  if (fs.existsSync(path.join(devDir, 'tools', 'voice', 'voice_helper.py'))) {
+    return devDir;
+  }
+  return projRoot;
+}
+
+export function getPythonExecutable(baseDir: string): string {
+  const venvPython = path.join(baseDir, 'tools', 'voice', '.venv', 'Scripts', 'python.exe');
+  if (fs.existsSync(venvPython)) {
+    return venvPython;
+  }
+  const devPython = path.resolve('D:\\Projects\\SpiderReminder', 'tools', 'voice', '.venv', 'Scripts', 'python.exe');
+  if (fs.existsSync(devPython)) {
+    return devPython;
+  }
+  return venvPython;
+}
+
+export function getModelsDirectory(baseDir: string): string {
+  const modelsDir = path.join(baseDir, 'models', 'vosk');
+  if (fs.existsSync(modelsDir)) {
+    return modelsDir;
+  }
+  const devModels = path.resolve('D:\\Projects\\SpiderReminder', 'models', 'vosk');
+  if (fs.existsSync(devModels)) {
+    return devModels;
+  }
+  return modelsDir;
+}
+
+/**
  * Force kills any stale python.exe processes running voice_helper.py to ensure single helper instance.
  */
 export function killStaleVoiceHelpers(): void {
@@ -75,8 +121,8 @@ export class VoskHelperEngine implements WakeWordEngine {
   }
 
   public getInstalledModels(): string[] {
-    const projectRoot = getProjectRoot();
-    const modelsDir = path.join(projectRoot, 'models', 'vosk');
+    const baseDir = getVoiceBaseDir();
+    const modelsDir = getModelsDirectory(baseDir);
     if (!fs.existsSync(modelsDir)) return [];
     try {
       return fs.readdirSync(modelsDir, { withFileTypes: true })
@@ -147,11 +193,11 @@ export class VoskHelperEngine implements WakeWordEngine {
     // Ensure only ONE helper process runs
     killStaleVoiceHelpers();
 
-    const projectRoot = getProjectRoot();
-    const venvPython = path.join(projectRoot, 'tools', 'voice', '.venv', 'Scripts', 'python.exe');
-    const helperScript = path.join(projectRoot, 'tools', 'voice', 'voice_helper.py');
-    const modelsDir = path.join(projectRoot, 'models', 'vosk');
-    const absoluteModelPath = path.join(modelsDir, this.modelName);
+    const baseDir = getVoiceBaseDir();
+    const venvPython = getPythonExecutable(baseDir);
+    const helperScript = path.join(baseDir, 'tools', 'voice', 'voice_helper.py');
+    const modelsDir = getModelsDirectory(baseDir);
+    let absoluteModelPath = path.join(modelsDir, this.modelName);
 
     if (!fs.existsSync(venvPython)) {
       console.warn(`[Voice] Python venv not found at: ${venvPython}`);
@@ -168,10 +214,16 @@ export class VoskHelperEngine implements WakeWordEngine {
     }
 
     if (!fs.existsSync(absoluteModelPath)) {
-      console.warn(`[Voice] Model folder does not exist: ${absoluteModelPath}`);
-      this.notifyError('MODEL_MISSING', 'Voice model not found');
-      this.isRunning = false;
-      return;
+      const fallbackModel = path.join(modelsDir, 'vosk-model-small-en-us-0.15');
+      if (fs.existsSync(fallbackModel)) {
+        console.warn(`[Voice] Model "${this.modelName}" not found at ${absoluteModelPath}, falling back to ${fallbackModel}`);
+        absoluteModelPath = fallbackModel;
+      } else {
+        console.warn(`[Voice] Model folder does not exist: ${absoluteModelPath}`);
+        this.notifyError('MODEL_MISSING', 'Voice model not found');
+        this.isRunning = false;
+        return;
+      }
     }
 
     const args: string[] = [
@@ -204,7 +256,7 @@ export class VoskHelperEngine implements WakeWordEngine {
 
     try {
       this.process = spawn(venvPython, args, {
-        cwd: projectRoot,
+        cwd: baseDir,
         env,
         stdio: ['pipe', 'pipe', 'pipe'],
         windowsHide: true,

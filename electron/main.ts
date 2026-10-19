@@ -8,7 +8,9 @@ import { VoskHelperEngine, killStaleVoiceHelpers } from './voice/voskEngine';
 import { AudioDevice, WakeWordError } from './voice/types';
 import { AnimationSequencer } from './sequencer';
 import { TaskService } from './tasks';
-
+ 
+app.setName('spider-reminder');
+ 
 // Crash Resilience: Global Unhandled Exceptions and Rejections
 process.on('uncaughtException', (err) => {
   console.error('[R7 Crash Resilience] Uncaught exception in main process:', err);

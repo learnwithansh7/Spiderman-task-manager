@@ -34,6 +34,16 @@
       "scripts/check-fullscreen.ps1",
       "package.json"
     ],
+    "extraResources": [
+      {
+        "from": "tools/voice",
+        "to": "tools/voice"
+      },
+      {
+        "from": "models",
+        "to": "models"
+      }
+    ],
     "win": {
       "target": [
         "nsis",
