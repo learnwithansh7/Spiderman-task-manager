@@ -364,7 +364,7 @@ function updateTrayMenu() {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: `Next: ${nextInfo.timeString} (${nextInfo.type.toUpperCase()})`,
+      label: `Next: ${nextInfo.timeString} (${(nextInfo.type || 'water').toUpperCase()})`,
       enabled: false,
     },
     { type: 'separator' },
@@ -529,6 +529,27 @@ async function setupVoiceEngine(settings: AppSettings) {
       sequencer.trigger('voice');
     });
 
+    let lastDismissTime = 0;
+    voiceEngine.onCommand((cmd) => {
+      if (cmd.name === 'dismiss') {
+        const now = Date.now();
+        if (now - lastDismissTime < 1000) {
+          console.log('[Voice] Dismiss command ignored: debounced (< 1000ms).');
+          return;
+        }
+        lastDismissTime = now;
+
+        const currentState = sequencer.getState();
+        console.log(`[Voice] Dismiss command received: "${cmd.phrase}" (conf: ${cmd.conf}). Current state: ${currentState}`);
+        if (currentState === 'LOOP') {
+          console.log('[Voice] Character is in LOOP with card open. Triggering dismiss exit.');
+          dismissSpider(`voice command ("${cmd.phrase}")`);
+        } else {
+          console.log(`[Voice] Dismiss command ignored. Reason: character not in LOOP state (state=${currentState}).`);
+        }
+      }
+    });
+
     voiceEngine.onDevices((devices) => {
       console.log(`[Voice] Received ${devices.length} audio input devices from helper.`);
       availableAudioDevices = devices;
@@ -569,6 +590,15 @@ async function setupVoiceEngine(settings: AppSettings) {
   }
 }
 
+function dismissSpider(reason: string): void {
+  console.log(`[Main] Dismissing character (reason: ${reason}).`);
+  voiceEngine?.setMode('idle');
+  hideCardWindow();
+  if (overlayWindow && !overlayWindow.isDestroyed()) {
+    overlayWindow.webContents.send('trigger-exit');
+  }
+}
+
 // IPC Handlers
 ipcMain.on('renderer-ready', () => {
   console.log('[R7 Main] Overlay renderer announced ready for animation triggers.');
@@ -583,8 +613,11 @@ ipcMain.on('seq-state', (_event, { correlationId, state }) => {
   sequencer.handleStateChange(correlationId, state);
   if (state === 'LOOP') {
     showCardWindow();
+    voiceEngine?.resume();
+    voiceEngine?.setMode('active');
   } else if (state === 'OUTRO' || state === 'HIDDEN') {
     hideCardWindow();
+    voiceEngine?.setMode('idle');
   }
 });
 
@@ -594,15 +627,13 @@ ipcMain.on('seq-voice-started', (_event, { correlationId, text }) => {
 
 ipcMain.on('seq-complete', (_event, { correlationId }) => {
   hideCardWindow();
+  voiceEngine?.setMode('idle');
   sequencer.handleComplete(correlationId);
   updateTrayMenu();
 });
 
 ipcMain.on('dismiss-spider', () => {
-  hideCardWindow();
-  if (overlayWindow && !overlayWindow.isDestroyed()) {
-    overlayWindow.webContents.send('trigger-exit');
-  }
+  dismissSpider('Close button clicked');
 });
 
 ipcMain.on('set-ignore-mouse-events', (event, ignore, options) => {
@@ -787,6 +818,10 @@ app.whenReady().then(() => {
     console.log('[R7 Startup] Manual user launch detected: opening Settings UI window.');
     createOrShowSettingsWindow();
   }
+});
+
+app.on('before-quit', () => {
+  isQuitting = true;
 });
 
 app.on('will-quit', () => {

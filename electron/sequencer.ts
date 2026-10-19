@@ -239,6 +239,7 @@ export class AnimationSequencer {
     // Cooldown before resuming voice helper
     setTimeout(() => {
       if (this.state === 'HIDDEN' && this.voiceEngine) {
+        this.voiceEngine.setMode('idle');
         this.voiceEngine.resume();
       }
     }, this.cooldownMs);
@@ -261,6 +262,7 @@ export class AnimationSequencer {
     if (this.overlayWindow && !this.overlayWindow.isDestroyed()) {
       this.overlayWindow.hide();
     }
+    this.voiceEngine?.setMode('idle');
     if (this.voiceEngine?.isPausedState()) {
       this.voiceEngine.resume();
     }

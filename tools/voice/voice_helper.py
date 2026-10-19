@@ -43,9 +43,13 @@ except Exception as e:
     sys.exit(1)
 
 
+# Dismiss phrases constant - editable to change phrase in future
+DISMISS_PHRASES = ["okay spider", "ok spider"]
+
 audio_queue = queue.Queue()
 running = True
 is_paused = False
+current_mode = "idle"  # "idle" or "active"
 current_threshold = 0.70
 current_device = None
 
@@ -107,7 +111,7 @@ def parse_word_confidence(result_dict, target_words, threshold):
 
 
 def stdin_reader():
-    global running, is_paused, current_threshold, current_device
+    global running, is_paused, current_mode, current_threshold, current_device
     while running:
         try:
             line = sys.stdin.readline()
@@ -132,6 +136,13 @@ def stdin_reader():
                 # Clear queue so backlog during pause doesn't trigger
                 with audio_queue.mutex:
                     audio_queue.queue.clear()
+            elif action == "mode":
+                if len(parts) > 1:
+                    m = parts[1].strip().lower()
+                    if m in ("idle", "active"):
+                        current_mode = m
+                        with audio_queue.mutex:
+                            audio_queue.queue.clear()
             elif action == "threshold":
                 if len(parts) > 1:
                     try:
@@ -153,7 +164,7 @@ def stdin_reader():
 
 
 def main():
-    global running, is_paused, current_threshold, current_device
+    global running, is_paused, current_mode, current_threshold, current_device
 
     parser = argparse.ArgumentParser(description="Vosk wake word helper for SpiderReminder")
     parser.add_argument("--model", type=str, required=True, help="Path to unpacked Vosk model directory")
@@ -177,14 +188,19 @@ def main():
         emit({"type": "error", "code": "MODEL_MISSING", "message": f"Failed to load Vosk model: {str(e)}"})
         sys.exit(1)
 
-    # Construct restricted grammar
+    # Construct restricted idle grammar
     if args.also_spider:
-        grammar = ["hey spider", "spider", "[unk]"]
+        idle_grammar = ["hey spider", "spider", "[unk]"]
     else:
-        grammar = ["hey spider", "[unk]"]
+        idle_grammar = ["hey spider", "[unk]"]
 
-    recognizer = KaldiRecognizer(model, 16000, json.dumps(grammar))
-    recognizer.SetWords(True)
+    idle_recognizer = KaldiRecognizer(model, 16000, json.dumps(idle_grammar))
+    idle_recognizer.SetWords(True)
+
+    # Construct active mode grammar (dismiss phrases + hey spider so it's not marked unk)
+    active_grammar = list(DISMISS_PHRASES) + ["hey spider", "[unk]"]
+    active_recognizer = KaldiRecognizer(model, 16000, json.dumps(active_grammar))
+    active_recognizer.SetWords(True)
 
     # Report available audio devices first
     devices = get_available_devices()
@@ -221,25 +237,45 @@ def main():
                     if is_paused:
                         continue
 
-                    if recognizer.AcceptWaveform(data):
-                        res_str = recognizer.Result()
+                    rec = active_recognizer if current_mode == "active" else idle_recognizer
+
+                    if rec.AcceptWaveform(data):
+                        res_str = rec.Result()
                         try:
                             res_dict = json.loads(res_str)
-                            # Check "hey spider"
-                            matched, conf, phrase = parse_word_confidence(res_dict, ["hey", "spider"], current_threshold)
-                            if not matched and args.also_spider:
-                                matched, conf, phrase = parse_word_confidence(res_dict, ["spider"], current_threshold)
+                            if current_mode == "active":
+                                # Check dismiss phrases
+                                for phrase in DISMISS_PHRASES:
+                                    target_words = phrase.split()
+                                    matched, conf, matched_phrase = parse_word_confidence(res_dict, target_words, current_threshold)
+                                    if matched:
+                                        emit({
+                                            "type": "command",
+                                            "name": "dismiss",
+                                            "phrase": matched_phrase,
+                                            "conf": round(conf, 3),
+                                            "ts": time.time()
+                                        })
+                                        with audio_queue.mutex:
+                                            audio_queue.queue.clear()
+                                        break
+                                # In active mode, recognized "hey spider" or others are ignored
+                            else:
+                                # IDLE mode: exact existing wake word logic
+                                matched, conf, phrase = parse_word_confidence(res_dict, ["hey", "spider"], current_threshold)
+                                if not matched and args.also_spider:
+                                    matched, conf, phrase = parse_word_confidence(res_dict, ["spider"], current_threshold)
 
-                            if matched:
-                                emit({
-                                    "type": "detected",
-                                    "phrase": phrase,
-                                    "conf": round(conf, 3),
-                                    "ts": time.time()
-                                })
-                                # Clear audio queue after trigger to avoid double hits
-                                with audio_queue.mutex:
-                                    audio_queue.queue.clear()
+                                if matched:
+                                    emit({
+                                        "type": "detected",
+                                        "phrase": phrase,
+                                        "conf": round(conf, 3),
+                                        "ts": time.time()
+                                    })
+                                    # Clear audio queue after trigger to avoid double hits
+                                    with audio_queue.mutex:
+                                        audio_queue.queue.clear()
                         except Exception:
                             pass
                     else:

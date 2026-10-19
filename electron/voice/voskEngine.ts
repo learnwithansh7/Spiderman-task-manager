@@ -9,6 +9,8 @@ import {
   WakeWordStateCallback,
   WakeWordError,
   AudioDevice,
+  VoiceCommand,
+  WakeWordCommandCallback,
 } from './types';
 
 export interface VoskEngineOptions {
@@ -100,6 +102,8 @@ export class VoskHelperEngine implements WakeWordEngine {
   private errorCallbacks: WakeWordErrorCallback[] = [];
   private devicesCallbacks: WakeWordDevicesCallback[] = [];
   private stateCallbacks: WakeWordStateCallback[] = [];
+  private commandCallbacks: WakeWordCommandCallback[] = [];
+  private currentMode: 'idle' | 'active' = 'idle';
 
   private isRunning = false;
   private isPaused = false;
@@ -147,6 +151,20 @@ export class VoskHelperEngine implements WakeWordEngine {
 
   public onStateChange(callback: WakeWordStateCallback): void {
     this.stateCallbacks.push(callback);
+  }
+
+  public onCommand(callback: WakeWordCommandCallback): void {
+    this.commandCallbacks.push(callback);
+  }
+
+  public setMode(mode: 'idle' | 'active'): void {
+    this.currentMode = mode;
+    this.sendCommand(`mode ${mode}`);
+    console.log(`[Voice] Voice helper mode set to: ${mode}`);
+  }
+
+  public getMode(): 'idle' | 'active' {
+    return this.currentMode;
   }
 
   public isListening(): boolean {
@@ -345,6 +363,20 @@ export class VoskHelperEngine implements WakeWordEngine {
           console.log('[Voice] Helper is READY and listening.');
           this.retryCount = 0;
           this.notifyState(true);
+          if (this.currentMode !== 'idle') {
+            this.sendCommand(`mode ${this.currentMode}`);
+          }
+          break;
+
+        case 'command':
+          console.log(`[Voice] Command received: ${msg.name} ("${msg.phrase}", conf: ${msg.conf})`);
+          for (const cb of this.commandCallbacks) {
+            try {
+              cb({ name: msg.name, phrase: msg.phrase, conf: msg.conf });
+            } catch (err) {
+              console.error('[Voice] Error in command callback:', err);
+            }
+          }
           break;
 
         case 'detected':
