@@ -88,8 +88,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // Milestone V1 Defaults
   voiceActivationEnabled: true,          // Voice activation is ON by default
   voiceDeviceId: null,
-  voiceSensitivity: 0.70,
-  voiceAlsoSpider: false,                 // OFF by default
+  voiceSensitivity: 0.75,                // 0.75 provides clean noise immunity while catching natural speech
+  voiceAlsoSpider: false,                // OFF by default to prevent ambient room noise false triggers
   voiceModelName: 'vosk-model-small-en-us-0.15',
 };
 

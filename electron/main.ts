@@ -1,4 +1,4 @@
-import { app, BrowserWindow, screen, Tray, Menu, nativeImage, globalShortcut, ipcMain, powerMonitor, Notification } from 'electron';
+import { app, BrowserWindow, screen, Tray, Menu, nativeImage, globalShortcut, ipcMain, powerMonitor, Notification, session } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import { ReminderScheduler } from './scheduler';
@@ -407,6 +407,41 @@ function updateTrayMenu() {
       ],
     },
     {
+      label: 'Microphone',
+      submenu: [
+        {
+          label: 'Default Microphone',
+          type: 'radio',
+          checked: currentSettings.voiceDeviceId === null,
+          click: () => {
+            console.log('[R7 Tray] Switched microphone to: Default');
+            currentSettings.voiceDeviceId = null;
+            saveSettings(currentSettings);
+            voiceEngine?.setDevice(null);
+            updateTrayMenu();
+            if (settingsWindow && !settingsWindow.isDestroyed()) {
+              settingsWindow.webContents.send('settings-updated', currentSettings);
+            }
+          },
+        },
+        ...availableAudioDevices.map((dev) => ({
+          label: `${dev.name}${dev.default ? ' (System Default)' : ''}`,
+          type: 'radio' as const,
+          checked: currentSettings.voiceDeviceId === dev.id,
+          click: () => {
+            console.log(`[R7 Tray] Switched microphone to: [${dev.id}] ${dev.name}`);
+            currentSettings.voiceDeviceId = dev.id;
+            saveSettings(currentSettings);
+            voiceEngine?.setDevice(dev.id);
+            updateTrayMenu();
+            if (settingsWindow && !settingsWindow.isDestroyed()) {
+              settingsWindow.webContents.send('settings-updated', currentSettings);
+            }
+          },
+        })),
+      ],
+    },
+    {
       label: 'Settings...',
       click: () => {
         console.log('[R7 Tray] Menu item clicked: "Settings..."');
@@ -527,6 +562,9 @@ async function setupVoiceEngine(settings: AppSettings) {
     voiceEngine.onDetected((phrase, conf) => {
       console.log(`[Voice] Detected phrase: "${phrase}" (conf: ${conf})`);
       sequencer.trigger('voice');
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('voice:test-detected', { phrase, conf, time: Date.now() });
+      }
     });
 
     let lastDismissTime = 0;
@@ -553,6 +591,10 @@ async function setupVoiceEngine(settings: AppSettings) {
     voiceEngine.onDevices((devices) => {
       console.log(`[Voice] Received ${devices.length} audio input devices from helper.`);
       availableAudioDevices = devices;
+      if (settingsWindow && !settingsWindow.isDestroyed()) {
+        settingsWindow.webContents.send('voice:devices-updated', devices);
+      }
+      updateTrayMenu();
     });
 
     voiceEngine.onStateChange((_listening) => {
@@ -751,6 +793,15 @@ ipcMain.handle('tasks:toggle', async (event, id: string) => {
 // App Lifecycle
 app.whenReady().then(() => {
   console.log('[R7 Lifecycle] App ready event fired.');
+
+  // Auto-grant microphone media permission for renderer mic testing
+  session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+    if (permission === 'media') {
+      return callback(true);
+    }
+    callback(true);
+  });
+
   createOverlayWindow();
 
   // Multi-Monitor Event Subscriptions

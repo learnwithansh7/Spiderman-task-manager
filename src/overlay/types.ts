@@ -19,6 +19,8 @@ export interface ElectronAPI {
   onSettingsUpdated?: (callback: (settings: AppSettings) => void) => () => void;
   getVoiceDevices?: () => Promise<any[]>;
   getVoiceModels?: () => Promise<string[]>;
+  onVoiceDetected?: (callback: (data: { phrase: string; conf: number }) => void) => () => void;
+  onVoiceDevicesUpdated?: (callback: (devices: any[]) => void) => () => void;
 }
 
 export interface TaskItem {

@@ -54,6 +54,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Milestone V1: Voice helper queries
   getVoiceDevices: () => ipcRenderer.invoke('get-voice-devices'),
   getVoiceModels: () => ipcRenderer.invoke('get-voice-models'),
+  onVoiceDetected: (callback: (data: { phrase: string; conf: number }) => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, data: { phrase: string; conf: number }) => callback(data);
+    ipcRenderer.on('voice:test-detected', sub);
+    return () => {
+      ipcRenderer.removeListener('voice:test-detected', sub);
+    };
+  },
+  onVoiceDevicesUpdated: (callback: (devices: any[]) => void) => {
+    const sub = (_event: Electron.IpcRendererEvent, devices: any[]) => callback(devices);
+    ipcRenderer.on('voice:devices-updated', sub);
+    return () => {
+      ipcRenderer.removeListener('voice:devices-updated', sub);
+    };
+  },
 });
 
 // Tasks API Preload Bridge
