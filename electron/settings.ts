@@ -63,7 +63,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   },
   snoozeDurationMinutes: 5,
   voiceMuted: false,
-  startWithWindows: false,
+  startWithWindows: true,
   reminderTypes: {
     water: {
       enabled: true,

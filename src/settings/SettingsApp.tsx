@@ -857,6 +857,79 @@ export const SettingsApp: React.FC = () => {
             gap: 16,
           }}
         >
+                    {/* SYSTEM AUTOSTART TOGGLE */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '16px 20px',
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              borderRadius: 12,
+              border: '1px solid rgba(56, 189, 248, 0.25)',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
+            }}
+          >
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 15, fontWeight: 800, color: '#f8fafc' }}>
+                  Start With Windows
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                    padding: '1px 6px',
+                    borderRadius: 4,
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                  }}
+                >
+                  Autostart
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                Automatically run Spider-Man on Windows startup so voice and reminders are always ready
+              </div>
+            </div>
+            <label style={{ position: 'relative', display: 'inline-block', width: 48, height: 26, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={settings?.startWithWindows ?? true}
+                onChange={(e) => updateSettingsField({ startWithWindows: e.target.checked })}
+                style={{ opacity: 0, width: 0, height: 0 }}
+              />
+              <span
+                style={{
+                  position: 'absolute',
+                  cursor: 'pointer',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  backgroundColor: (settings?.startWithWindows ?? true) ? '#38bdf8' : '#334155',
+                  boxShadow: (settings?.startWithWindows ?? true) ? '0 0 12px rgba(56, 189, 248, 0.5)' : 'none',
+                  borderRadius: 26,
+                  transition: '0.2s ease',
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    height: 20,
+                    width: 20,
+                    left: (settings?.startWithWindows ?? true) ? 25 : 3,
+                    bottom: 3,
+                    backgroundColor: '#ffffff',
+                    borderRadius: '50%',
+                    transition: '0.2s ease',
+                  }}
+                />
+              </span>
+            </label>
+          </div>
+
           {/* 1. MASTER VOICE TOGGLE */}
           <div
             style={{

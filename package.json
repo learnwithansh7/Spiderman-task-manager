@@ -1,6 +1,6 @@
 {
   "name": "spider-reminder",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "SpiderReminder - Windows desktop reminder app",
   "main": "dist/electron/main.js",
   "author": "SpiderReminder Team",
