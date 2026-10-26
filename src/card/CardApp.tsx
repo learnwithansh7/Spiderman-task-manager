@@ -5,6 +5,28 @@ export const CardApp: React.FC = () => {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState<string>('');
+  const [isAdding, setIsAdding] = useState<boolean>(false);
+
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const title = newTaskTitle.trim();
+    if (!title || isAdding) return;
+    setIsAdding(true);
+    setErrorMsg(null);
+    try {
+      if (window.tasksApi?.add) {
+        await window.tasksApi.add(title);
+        setNewTaskTitle('');
+        const list = await window.tasksApi.list();
+        if (Array.isArray(list)) setTasks(list);
+      }
+    } catch (err: any) {
+      setErrorMsg(String(err));
+    } finally {
+      setIsAdding(false);
+    }
+  };
 
   useEffect(() => {
     async function loadTasks() {
@@ -213,41 +235,70 @@ export const CardApp: React.FC = () => {
         )}
       </div>
 
-      {/* 4. FOOTER: One Close button matching old card's main button style */}
-      <div
+      {/* 4. FOOTER: Add task input and Close button */}
+      <form
+        onSubmit={handleAddTask}
         style={{
-          marginTop: 12,
+          marginTop: 10,
           display: 'flex',
-          justifyContent: 'flex-end',
+          gap: 6,
+          alignItems: 'center',
           flexShrink: 0,
         }}
       >
+        <input
+          type="text"
+          placeholder="Add task..."
+          maxLength={200}
+          value={newTaskTitle}
+          onChange={(e) => setNewTaskTitle(e.target.value)}
+          disabled={isAdding}
+          style={{
+            flex: 1,
+            backgroundColor: '#090d16',
+            border: '1px solid #334155',
+            borderRadius: 6,
+            color: '#f8fafc',
+            padding: '6px 10px',
+            fontSize: 12,
+            outline: 'none',
+          }}
+        />
         <button
-          type="button"
-          onClick={handleClose}
+          type="submit"
+          disabled={!newTaskTitle.trim() || isAdding}
           style={{
             backgroundColor: '#0284c7',
             backgroundImage: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
             color: '#ffffff',
             border: 'none',
             borderRadius: 6,
-            padding: '6px 18px',
+            padding: '6px 12px',
             fontSize: 12,
             fontWeight: 700,
+            cursor: newTaskTitle.trim() ? 'pointer' : 'default',
+            opacity: newTaskTitle.trim() ? 1 : 0.6,
+          }}
+        >
+          Add
+        </button>
+        <button
+          type="button"
+          onClick={handleClose}
+          style={{
+            backgroundColor: '#1e293b',
+            color: '#94a3b8',
+            border: '1px solid #334155',
+            borderRadius: 6,
+            padding: '6px 12px',
+            fontSize: 12,
+            fontWeight: 600,
             cursor: 'pointer',
-            boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)',
-            transition: 'all 0.15s ease',
-          }}
-          onMouseOver={(e) => {
-            e.currentTarget.style.filter = 'brightness(1.08)';
-          }}
-          onMouseOut={(e) => {
-            e.currentTarget.style.filter = 'none';
           }}
         >
           Close
         </button>
-      </div>
+      </form>
     </div>
   );
 };

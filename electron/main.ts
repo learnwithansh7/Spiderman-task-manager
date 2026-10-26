@@ -579,8 +579,8 @@ async function setupVoiceEngine(settings: AppSettings) {
 
         const currentState = sequencer.getState();
         console.log(`[Voice] Dismiss command received: "${cmd.phrase}" (conf: ${cmd.conf}). Current state: ${currentState}`);
-        if (currentState === 'LOOP') {
-          console.log('[Voice] Character is in LOOP with card open. Triggering dismiss exit.');
+        if (currentState !== 'HIDDEN') {
+          console.log('[Voice] Character is visible. Triggering dismiss exit.');
           dismissSpider(`voice command ("${cmd.phrase}")`);
         } else {
           console.log(`[Voice] Dismiss command ignored. Reason: character not in LOOP state (state=${currentState}).`);
@@ -747,42 +747,22 @@ ipcMain.handle('get-voice-models', () => {
   return voiceEngine ? voiceEngine.getInstalledModels() : [];
 });
 
-// Tasks IPC Handlers with sender validation
-ipcMain.handle('tasks:list', (event, options) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed() || !BrowserWindow.getAllWindows().includes(win)) {
-    console.warn('[Tasks] tasks:list rejected: unauthorized sender.');
-    throw new Error('Forbidden');
-  }
+// Tasks IPC Handlers
+ipcMain.handle('tasks:list', (_event, options) => {
   return taskService ? taskService.list(options) : [];
 });
 
-ipcMain.handle('tasks:add', async (event, title: string) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed() || !BrowserWindow.getAllWindows().includes(win)) {
-    console.warn('[Tasks] tasks:add rejected: unauthorized sender.');
-    throw new Error('Forbidden');
-  }
+ipcMain.handle('tasks:add', async (_event, title: string) => {
   if (!taskService) throw new Error('Task service not available');
   return await taskService.add(title);
 });
 
-ipcMain.handle('tasks:remove', async (event, id: string) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed() || !BrowserWindow.getAllWindows().includes(win)) {
-    console.warn('[Tasks] tasks:remove rejected: unauthorized sender.');
-    throw new Error('Forbidden');
-  }
+ipcMain.handle('tasks:remove', async (_event, id: string) => {
   if (!taskService) throw new Error('Task service not available');
   return await taskService.remove(id);
 });
 
-ipcMain.handle('tasks:toggle', async (event, id: string) => {
-  const win = BrowserWindow.fromWebContents(event.sender);
-  if (!win || win.isDestroyed() || !BrowserWindow.getAllWindows().includes(win)) {
-    console.warn('[Tasks] tasks:toggle rejected: unauthorized sender.');
-    throw new Error('Forbidden');
-  }
+ipcMain.handle('tasks:toggle', async (_event, id: string) => {
   if (!taskService) throw new Error('Task service not available');
   if (typeof id !== 'string' || !id.trim()) {
     throw new Error('Invalid task id');

@@ -184,6 +184,8 @@ export class AnimationSequencer {
     }
 
     if (newState === 'LOOP') {
+      this.voiceEngine?.resume();
+      this.voiceEngine?.setMode('active');
       // He stays until closed. Start 30-minute safety limit.
       if (this.taskModeSafetyTimer) clearTimeout(this.taskModeSafetyTimer);
       this.taskModeSafetyTimer = setTimeout(() => {

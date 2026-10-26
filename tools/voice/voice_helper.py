@@ -44,7 +44,7 @@ except Exception as e:
 
 
 # Dismiss phrases constant - editable to change phrase in future
-DISMISS_PHRASES = ["okay spider", "ok spider"]
+DISMISS_PHRASES = ["okay spider", "ok spider", "bye spider", "goodbye spider", "close spider"]
 
 audio_queue = queue.Queue()
 running = True
@@ -117,23 +117,31 @@ def parse_word_confidence(result_dict, target_words, threshold):
             confs = [float(w.get("conf", 1.0)) for w in window]
             avg_conf = sum(confs) / len(confs)
 
-            # Two-word phrases: "hey spider", "okay spider", "ok spider"
+            # Two-word phrases: "hey spider", "okay spider", "ok spider", etc.
             if n == 2:
                 w1, w2 = window[0], window[1]
                 w1_dur = float(w1.get("end", 0)) - float(w1.get("start", 0))
                 w2_dur = float(w2.get("end", 0)) - float(w2.get("start", 0))
                 gap = float(w2.get("start", 0)) - float(w1.get("end", 0))
 
-                # Durations must be realistic human speech (not momentary click/pop)
-                # and inter-word gap must be natural for a spoken phrase (< 0.65s)
-                if w1_dur < 0.10 or w2_dur < 0.20 or gap > 0.65 or gap < -0.15:
+                phrase_str = " ".join(target_words)
+                is_dismiss = phrase_str in DISMISS_PHRASES
+
+                # Relax durations for dismiss phrases so natural human speech triggers reliably
+                min_w1 = 0.05 if is_dismiss else 0.10
+                min_w2 = 0.10 if is_dismiss else 0.20
+                max_gap = 0.90 if is_dismiss else 0.65
+
+                if w1_dur < min_w1 or w2_dur < min_w2 or gap > max_gap or gap < -0.15:
                     continue
 
                 # Both words must have genuine confidence
-                if min(confs) < 0.60 or avg_conf < threshold:
+                effective_threshold = min(0.60, threshold) if is_dismiss else threshold
+                min_word_conf = 0.50 if is_dismiss else 0.60
+                if min(confs) < min_word_conf or avg_conf < effective_threshold:
                     continue
 
-                phrase = " ".join(target_words)
+                phrase = phrase_str
                 return True, avg_conf, phrase
 
             # Single-word phrase: "spider"
@@ -248,17 +256,19 @@ def main():
         emit({"type": "error", "code": "MODEL_MISSING", "message": f"Failed to load Vosk model: {str(e)}"})
         sys.exit(1)
 
-    # Construct restricted idle grammar
+    # Construct grammar with both wake words and dismiss phrases in both modes
+    all_known = ["hey spider"]
     if args.also_spider:
-        idle_grammar = ["hey spider", "spider", "[unk]"]
-    else:
-        idle_grammar = ["hey spider", "[unk]"]
+        all_known.append("spider")
+    for dp in DISMISS_PHRASES:
+        if dp not in all_known:
+            all_known.append(dp)
+    all_known.append("[unk]")
 
-    idle_recognizer = KaldiRecognizer(model, 16000, json.dumps(idle_grammar))
+    idle_recognizer = KaldiRecognizer(model, 16000, json.dumps(all_known))
     idle_recognizer.SetWords(True)
 
-    # Construct active mode grammar (dismiss phrases + hey spider so it's not marked unk)
-    active_grammar = list(DISMISS_PHRASES) + ["hey spider", "[unk]"]
+    active_grammar = list(all_known)
     active_recognizer = KaldiRecognizer(model, 16000, json.dumps(active_grammar))
     active_recognizer.SetWords(True)
 
@@ -318,41 +328,43 @@ def main():
                         res_str = rec.Result()
                         try:
                             res_dict = json.loads(res_str)
-                            if current_mode == "active":
-                                # Check dismiss phrases
-                                for phrase in DISMISS_PHRASES:
-                                    target_words = phrase.split()
-                                    matched, conf, matched_phrase = parse_word_confidence(res_dict, target_words, current_threshold)
-                                    if matched:
-                                        emit({
-                                            "type": "command",
-                                            "name": "dismiss",
-                                            "phrase": matched_phrase,
-                                            "conf": round(conf, 3),
-                                            "ts": time.time()
-                                        })
-                                        rec.Reset()
-                                        with audio_queue.mutex:
-                                            audio_queue.queue.clear()
-                                        break
-                                # In active mode, recognized "hey spider" or others are ignored
-                            else:
-                                # IDLE mode: exact existing wake word logic
-                                matched, conf, phrase = parse_word_confidence(res_dict, ["hey", "spider"], current_threshold)
-                                if not matched and args.also_spider:
-                                    matched, conf, phrase = parse_word_confidence(res_dict, ["spider"], current_threshold)
-
+                            # Check for dismiss phrases in both modes
+                            dismiss_matched = False
+                            for phrase in DISMISS_PHRASES:
+                                target_words = phrase.split()
+                                matched, conf, matched_phrase = parse_word_confidence(res_dict, target_words, current_threshold)
                                 if matched:
                                     emit({
-                                        "type": "detected",
-                                        "phrase": phrase,
+                                        "type": "command",
+                                        "name": "dismiss",
+                                        "phrase": matched_phrase,
                                         "conf": round(conf, 3),
                                         "ts": time.time()
                                     })
                                     rec.Reset()
-                                    # Clear audio queue after trigger to avoid double hits
                                     with audio_queue.mutex:
                                         audio_queue.queue.clear()
+                                    dismiss_matched = True
+                                    break
+
+                            if dismiss_matched:
+                                continue
+
+                            # Check wake word ("hey spider" or "spider")
+                            matched, conf, phrase = parse_word_confidence(res_dict, ["hey", "spider"], current_threshold)
+                            if not matched and args.also_spider:
+                                matched, conf, phrase = parse_word_confidence(res_dict, ["spider"], current_threshold)
+
+                            if matched:
+                                emit({
+                                    "type": "detected",
+                                    "phrase": phrase,
+                                    "conf": round(conf, 3),
+                                    "ts": time.time()
+                                })
+                                rec.Reset()
+                                with audio_queue.mutex:
+                                    audio_queue.queue.clear()
                         except Exception:
                             pass
                     else:
