@@ -8,26 +8,6 @@ export const CardApp: React.FC = () => {
   const [newTaskTitle, setNewTaskTitle] = useState<string>('');
   const [isAdding, setIsAdding] = useState<boolean>(false);
 
-  const handleAddTask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const title = newTaskTitle.trim();
-    if (!title || isAdding) return;
-    setIsAdding(true);
-    setErrorMsg(null);
-    try {
-      if (window.tasksApi?.add) {
-        await window.tasksApi.add(title);
-        setNewTaskTitle('');
-        const list = await window.tasksApi.list();
-        if (Array.isArray(list)) setTasks(list);
-      }
-    } catch (err: any) {
-      setErrorMsg(String(err));
-    } finally {
-      setIsAdding(false);
-    }
-  };
-
   useEffect(() => {
     async function loadTasks() {
       try {
@@ -59,6 +39,26 @@ export const CardApp: React.FC = () => {
     }
   }, []);
 
+  const handleAddTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const title = newTaskTitle.trim();
+    if (!title || isAdding) return;
+    setIsAdding(true);
+    setErrorMsg(null);
+    try {
+      if (window.tasksApi?.add) {
+        await window.tasksApi.add(title);
+        setNewTaskTitle('');
+        const list = await window.tasksApi.list();
+        if (Array.isArray(list)) setTasks(list);
+      }
+    } catch (err: any) {
+      setErrorMsg(String(err?.message || err));
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
   const handleToggle = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     setErrorMsg(null);
@@ -74,6 +74,19 @@ export const CardApp: React.FC = () => {
       const msg = err?.message || String(err);
       console.error('[Card] Failed to toggle task:', msg);
       setErrorMsg(`Could not update task: ${msg}`);
+    }
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setErrorMsg(null);
+    try {
+      if (!window.tasksApi?.remove) return;
+      await window.tasksApi.remove(id);
+      const list = await window.tasksApi.list();
+      if (Array.isArray(list)) setTasks(list);
+    } catch (err: any) {
+      console.error('[Card] Failed to delete task:', err);
     }
   };
 
@@ -103,7 +116,6 @@ export const CardApp: React.FC = () => {
         color: '#f8fafc',
         boxSizing: 'border-box',
         overflow: 'hidden',
-        userSelect: 'none',
       }}
     >
       {/* 1. HEADER: Title and Counter matching old card's header style */}
@@ -214,9 +226,10 @@ export const CardApp: React.FC = () => {
                 {task.done && '✓'}
               </div>
 
-              {/* Task title (Hindi / Unicode supported, wraps/truncates cleanly) */}
+              {/* Task title */}
               <span
                 style={{
+                  flex: 1,
                   fontSize: 13,
                   color: task.done ? '#64748b' : '#f8fafc',
                   textDecoration: task.done ? 'line-through' : 'none',
@@ -230,6 +243,36 @@ export const CardApp: React.FC = () => {
               >
                 {task.title}
               </span>
+
+              {/* Delete button */}
+              <button
+                type="button"
+                onClick={(e) => handleDelete(task.id, e)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#64748b',
+                  fontSize: 13,
+                  cursor: 'pointer',
+                  padding: '2px 4px',
+                  borderRadius: 4,
+                  lineHeight: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.color = '#ef4444';
+                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.1)';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.color = '#64748b';
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+                title="Delete task"
+              >
+                ✕
+              </button>
             </div>
           ))
         )}
@@ -259,9 +302,17 @@ export const CardApp: React.FC = () => {
             border: '1px solid #334155',
             borderRadius: 6,
             color: '#f8fafc',
-            padding: '6px 10px',
+            padding: '7px 10px',
             fontSize: 12,
             outline: 'none',
+            userSelect: 'text',
+            cursor: 'text',
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = '#38bdf8';
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = '#334155';
           }}
         />
         <button
@@ -273,11 +324,12 @@ export const CardApp: React.FC = () => {
             color: '#ffffff',
             border: 'none',
             borderRadius: 6,
-            padding: '6px 12px',
+            padding: '7px 14px',
             fontSize: 12,
             fontWeight: 700,
             cursor: newTaskTitle.trim() ? 'pointer' : 'default',
             opacity: newTaskTitle.trim() ? 1 : 0.6,
+            flexShrink: 0,
           }}
         >
           Add
@@ -290,10 +342,11 @@ export const CardApp: React.FC = () => {
             color: '#94a3b8',
             border: '1px solid #334155',
             borderRadius: 6,
-            padding: '6px 12px',
+            padding: '7px 12px',
             fontSize: 12,
             fontWeight: 600,
             cursor: 'pointer',
+            flexShrink: 0,
           }}
         >
           Close
