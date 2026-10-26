@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { TaskItem } from '../overlay/types';
 import { AppSettings } from '../types/settings';
+import iconImg from '../../assets/icon.png';
+import characterImg from '../../assets/character.png';
 
 interface AudioDeviceItem {
   id: number;
@@ -254,14 +256,39 @@ export const SettingsApp: React.FC = () => {
 
   const totalCount = tasks.length;
   const completedCount = tasks.filter((t) => t.done).length;
+  const progressPct = totalCount === 0 ? 0 : Math.round((completedCount / totalCount) * 100);
   const counterText = totalCount === 0 ? '0 tasks' : `${completedCount} of ${totalCount} done`;
 
   if (loadingTasks) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#94a3b8', backgroundColor: '#090d16' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          color: '#f8fafc',
+          backgroundColor: '#070a12',
+          backgroundImage: 'radial-gradient(ellipse at 50% 20%, rgba(225, 29, 72, 0.15) 0%, transparent 70%)',
+        }}
+      >
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 32, marginBottom: 8 }}>🕷️</div>
-          <div style={{ fontSize: 13, fontWeight: 500 }}>Loading SpiderReminder...</div>
+          <img
+            src={iconImg}
+            alt="Spider Icon"
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: '50%',
+              border: '2px solid #e11d48',
+              boxShadow: '0 0 20px rgba(225, 29, 72, 0.6)',
+              marginBottom: 12,
+            }}
+          />
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc', letterSpacing: '0.5px' }}>
+            SPIDER-REMINDER
+          </div>
+          <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>Loading your mission board...</div>
         </div>
       </div>
     );
@@ -273,20 +300,33 @@ export const SettingsApp: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
-        backgroundColor: '#090d16',
+        backgroundColor: '#070a12',
+        backgroundImage: 'radial-gradient(circle at 80% 10%, rgba(225, 29, 72, 0.08) 0%, transparent 40%), radial-gradient(circle at 20% 90%, rgba(56, 189, 248, 0.06) 0%, transparent 40%)',
         color: '#f8fafc',
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
         overflow: 'hidden',
         userSelect: 'none',
       }}
     >
+      {/* Top Hero Gradient Glow Strip */}
+      <div
+        style={{
+          height: 3,
+          width: '100%',
+          background: 'linear-gradient(90deg, #e11d48 0%, #38bdf8 50%, #e11d48 100%)',
+          boxShadow: '0 0 12px rgba(225, 29, 72, 0.8)',
+          flexShrink: 0,
+        }}
+      />
+
       {/* 1. TOP HEADER & TABS BAR */}
       <header
         style={{
           display: 'flex',
           flexDirection: 'column',
-          backgroundColor: '#0f172a',
-          borderBottom: '1px solid #1e293b',
+          backgroundColor: 'rgba(15, 23, 42, 0.85)',
+          backdropFilter: 'blur(12px)',
+          borderBottom: '1px solid rgba(225, 29, 72, 0.2)',
           flexShrink: 0,
         }}
       >
@@ -296,31 +336,69 @@ export const SettingsApp: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            padding: '14px 20px 10px 20px',
+            padding: '12px 20px 10px 20px',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div
               style={{
-                width: 34,
-                height: 34,
-                borderRadius: 8,
-                backgroundColor: '#1e293b',
-                border: '1px solid #334155',
+                position: 'relative',
+                width: 38,
+                height: 38,
+                borderRadius: '50%',
+                backgroundColor: '#0f172a',
+                border: '2px solid #e11d48',
+                boxShadow: '0 0 14px rgba(225, 29, 72, 0.45)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: 18,
+                overflow: 'hidden',
+                flexShrink: 0,
               }}
             >
-              🕷️
+              <img
+                src={iconImg}
+                alt="Emblem"
+                style={{
+                  width: '90%',
+                  height: '90%',
+                  objectFit: 'contain',
+                }}
+              />
             </div>
             <div>
-              <h1 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: '#f8fafc', letterSpacing: '-0.2px' }}>
-                SpiderReminder
-              </h1>
-              <p style={{ fontSize: 11, color: '#64748b', margin: '2px 0 0 0' }}>
-                Desktop Reminder & Voice Assistant
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <h1
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 800,
+                    margin: 0,
+                    letterSpacing: '0.4px',
+                    background: 'linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                >
+                  SpiderReminder
+                </h1>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    color: '#e11d48',
+                    backgroundColor: 'rgba(225, 29, 72, 0.12)',
+                    padding: '1px 6px',
+                    borderRadius: 4,
+                    border: '1px solid rgba(225, 29, 72, 0.3)',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  Hero HQ
+                </span>
+              </div>
+              <p style={{ fontSize: 11, color: '#94a3b8', margin: '2px 0 0 0' }}>
+                Desktop Missions & Offline Voice Assistant
               </p>
             </div>
           </div>
@@ -331,14 +409,15 @@ export const SettingsApp: React.FC = () => {
               style={{
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#38bdf8',
-                backgroundColor: 'rgba(2, 132, 199, 0.15)',
+                color: completedCount === totalCount && totalCount > 0 ? '#4ade80' : '#38bdf8',
+                backgroundColor: completedCount === totalCount && totalCount > 0 ? 'rgba(74, 222, 128, 0.12)' : 'rgba(56, 189, 248, 0.12)',
                 padding: '5px 14px',
                 borderRadius: 20,
-                border: '1px solid rgba(56, 189, 248, 0.3)',
+                border: completedCount === totalCount && totalCount > 0 ? '1px solid rgba(74, 222, 128, 0.35)' : '1px solid rgba(56, 189, 248, 0.35)',
+                boxShadow: completedCount === totalCount && totalCount > 0 ? '0 0 10px rgba(74, 222, 128, 0.2)' : '0 0 10px rgba(56, 189, 248, 0.15)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6,
+                gap: 7,
               }}
             >
               <span
@@ -347,6 +426,7 @@ export const SettingsApp: React.FC = () => {
                   height: 7,
                   borderRadius: '50%',
                   backgroundColor: completedCount === totalCount && totalCount > 0 ? '#4ade80' : '#38bdf8',
+                  boxShadow: completedCount === totalCount && totalCount > 0 ? '0 0 6px #4ade80' : '0 0 6px #38bdf8',
                   display: 'inline-block',
                 }}
               />
@@ -355,20 +435,42 @@ export const SettingsApp: React.FC = () => {
           ) : (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {saveStatus && (
-                <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>{saveStatus}</span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: '#4ade80',
+                    fontWeight: 700,
+                    textShadow: '0 0 6px rgba(74, 222, 128, 0.4)',
+                  }}
+                >
+                  {saveStatus}
+                </span>
               )}
               <div
                 style={{
                   fontSize: 11,
-                  fontWeight: 600,
+                  fontWeight: 700,
                   color: settings?.voiceActivationEnabled ? '#4ade80' : '#94a3b8',
                   backgroundColor: settings?.voiceActivationEnabled ? 'rgba(74, 222, 128, 0.12)' : 'rgba(148, 163, 184, 0.12)',
-                  padding: '4px 10px',
+                  padding: '5px 12px',
                   borderRadius: 16,
-                  border: settings?.voiceActivationEnabled ? '1px solid rgba(74, 222, 128, 0.3)' : '1px solid #334155',
+                  border: settings?.voiceActivationEnabled ? '1px solid rgba(74, 222, 128, 0.35)' : '1px solid #334155',
+                  boxShadow: settings?.voiceActivationEnabled ? '0 0 10px rgba(74, 222, 128, 0.2)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
                 }}
               >
-                {settings?.voiceActivationEnabled ? '🎙️ Voice Active' : '🔇 Voice Off'}
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    backgroundColor: settings?.voiceActivationEnabled ? '#4ade80' : '#64748b',
+                    boxShadow: settings?.voiceActivationEnabled ? '0 0 6px #4ade80' : 'none',
+                  }}
+                />
+                {settings?.voiceActivationEnabled ? 'Voice Listening' : 'Voice Off'}
               </div>
             </div>
           )}
@@ -378,9 +480,9 @@ export const SettingsApp: React.FC = () => {
         <div
           style={{
             display: 'flex',
-            gap: 4,
+            gap: 8,
             padding: '0 16px',
-            borderTop: '1px solid rgba(30, 41, 59, 0.6)',
+            borderTop: '1px solid rgba(255, 255, 255, 0.05)',
           }}
         >
           <button
@@ -388,38 +490,55 @@ export const SettingsApp: React.FC = () => {
             style={{
               padding: '10px 18px',
               fontSize: 13,
-              fontWeight: activeTab === 'tasks' ? 700 : 500,
-              color: activeTab === 'tasks' ? '#38bdf8' : '#94a3b8',
+              fontWeight: activeTab === 'tasks' ? 800 : 500,
+              color: activeTab === 'tasks' ? '#ffffff' : '#94a3b8',
               background: 'transparent',
               border: 'none',
-              borderBottom: activeTab === 'tasks' ? '2px solid #38bdf8' : '2px solid transparent',
+              borderBottom: activeTab === 'tasks' ? '3px solid #e11d48' : '3px solid transparent',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
+              gap: 8,
               transition: 'all 0.15s ease',
+              textShadow: activeTab === 'tasks' ? '0 0 10px rgba(225, 29, 72, 0.6)' : 'none',
             }}
           >
-            📋 SpiderTasks
+            <span>🕷️ SpiderTasks</span>
+            {totalCount > 0 && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 800,
+                  backgroundColor: activeTab === 'tasks' ? '#e11d48' : '#1e293b',
+                  color: '#ffffff',
+                  padding: '2px 7px',
+                  borderRadius: 10,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {totalCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setActiveTab('voice')}
             style={{
               padding: '10px 18px',
               fontSize: 13,
-              fontWeight: activeTab === 'voice' ? 700 : 500,
-              color: activeTab === 'voice' ? '#38bdf8' : '#94a3b8',
+              fontWeight: activeTab === 'voice' ? 800 : 500,
+              color: activeTab === 'voice' ? '#ffffff' : '#94a3b8',
               background: 'transparent',
               border: 'none',
-              borderBottom: activeTab === 'voice' ? '2px solid #38bdf8' : '2px solid transparent',
+              borderBottom: activeTab === 'voice' ? '3px solid #38bdf8' : '3px solid transparent',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              gap: 6,
+              gap: 8,
               transition: 'all 0.15s ease',
+              textShadow: activeTab === 'voice' ? '0 0 10px rgba(56, 189, 248, 0.6)' : 'none',
             }}
           >
-            🎙️ Microphone & Voice
+            <span>🎙️ Microphone & Voice</span>
           </button>
         </div>
       </header>
@@ -431,12 +550,80 @@ export const SettingsApp: React.FC = () => {
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '20px 22px',
+            padding: '18px 22px',
             display: 'flex',
             flexDirection: 'column',
             gap: 16,
           }}
         >
+          {/* Hero Overview Card */}
+          <div
+            style={{
+              padding: '14px 18px',
+              background: 'linear-gradient(135deg, rgba(225, 29, 72, 0.12) 0%, rgba(56, 189, 248, 0.08) 100%)',
+              border: '1px solid rgba(225, 29, 72, 0.25)',
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <img
+                src={characterImg}
+                alt="Spider-Man"
+                style={{
+                  width: 44,
+                  height: 52,
+                  objectFit: 'contain',
+                  filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.6))',
+                  flexShrink: 0,
+                }}
+              />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#ffffff', letterSpacing: '0.2px' }}>
+                  Mission Progress
+                </div>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                  {totalCount === 0
+                    ? 'No active missions on your web.'
+                    : completedCount === totalCount
+                    ? 'All web missions completed! Outstanding work, Hero.'
+                    : `${totalCount - completedCount} pending missions remaining.`}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, minWidth: 120 }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#e11d48' }}>
+                {progressPct}% Done
+              </span>
+              <div
+                style={{
+                  width: 120,
+                  height: 6,
+                  backgroundColor: 'rgba(15, 23, 42, 0.8)',
+                  borderRadius: 3,
+                  overflow: 'hidden',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                }}
+              >
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${progressPct}%`,
+                    background: 'linear-gradient(90deg, #e11d48 0%, #38bdf8 100%)',
+                    borderRadius: 3,
+                    transition: 'width 0.3s ease',
+                    boxShadow: '0 0 8px rgba(225, 29, 72, 0.6)',
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Add task bar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <form
@@ -450,46 +637,53 @@ export const SettingsApp: React.FC = () => {
               <input
                 ref={inputRef}
                 type="text"
-                placeholder="Add a task..."
+                placeholder="Assign a new mission to Spider-Man..."
                 maxLength={200}
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 disabled={isSubmitting}
                 style={{
                   flex: 1,
-                  backgroundColor: '#111827',
-                  border: addError ? '1px solid #ef4444' : '1px solid #334155',
+                  backgroundColor: 'rgba(15, 23, 42, 0.7)',
+                  border: addError ? '1px solid #ef4444' : '1px solid rgba(255, 255, 255, 0.12)',
                   borderRadius: 8,
                   color: '#f8fafc',
-                  padding: '10px 14px',
+                  padding: '11px 16px',
                   fontSize: 14,
                   outline: 'none',
-                  transition: 'border-color 0.15s ease',
-                  boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.3)',
+                  transition: 'all 0.15s ease',
+                  boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.4)',
                   userSelect: 'text',
                 }}
-                onFocus={(e) => { e.target.style.borderColor = addError ? '#ef4444' : '#38bdf8'; }}
-                onBlur={(e) => { e.target.style.borderColor = addError ? '#ef4444' : '#334155'; }}
+                onFocus={(e) => {
+                  e.target.style.borderColor = addError ? '#ef4444' : '#e11d48';
+                  e.target.style.boxShadow = '0 0 12px rgba(225, 29, 72, 0.3)';
+                }}
+                onBlur={(e) => {
+                  e.target.style.borderColor = addError ? '#ef4444' : 'rgba(255, 255, 255, 0.12)';
+                  e.target.style.boxShadow = 'inset 0 1px 3px rgba(0, 0, 0, 0.4)';
+                }}
               />
               <button
                 type="submit"
                 disabled={!newTaskTitle.trim() || isSubmitting}
                 style={{
-                  backgroundColor: newTaskTitle.trim() ? '#0284c7' : '#1e293b',
-                  backgroundImage: newTaskTitle.trim() ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)' : 'none',
+                  backgroundColor: newTaskTitle.trim() ? '#e11d48' : '#1e293b',
+                  backgroundImage: newTaskTitle.trim() ? 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)' : 'none',
                   color: newTaskTitle.trim() ? '#ffffff' : '#64748b',
-                  border: newTaskTitle.trim() ? '1px solid #38bdf8' : '1px solid #334155',
+                  border: newTaskTitle.trim() ? '1px solid rgba(225, 29, 72, 0.8)' : '1px solid #334155',
                   borderRadius: 8,
-                  padding: '10px 20px',
+                  padding: '11px 22px',
                   fontSize: 14,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   cursor: newTaskTitle.trim() && !isSubmitting ? 'pointer' : 'default',
-                  boxShadow: newTaskTitle.trim() ? '0 3px 10px rgba(2, 132, 199, 0.4)' : 'none',
+                  boxShadow: newTaskTitle.trim() ? '0 4px 14px rgba(225, 29, 72, 0.45)' : 'none',
                   transition: 'all 0.15s ease',
                   flexShrink: 0,
+                  letterSpacing: '0.3px',
                 }}
               >
-                Add
+                + Add Task
               </button>
             </form>
             {addError && (
@@ -518,20 +712,30 @@ export const SettingsApp: React.FC = () => {
                   flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '48px 16px',
-                  color: '#64748b',
+                  padding: '36px 16px',
+                  color: '#94a3b8',
                   textAlign: 'center',
                   borderRadius: 12,
-                  border: '1px dashed #1e293b',
+                  border: '1px dashed rgba(225, 29, 72, 0.3)',
                   backgroundColor: 'rgba(15, 23, 42, 0.4)',
                 }}
               >
-                <div style={{ fontSize: 32, marginBottom: 10 }}>🕸️</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#94a3b8', marginBottom: 4 }}>
-                  No tasks yet
+                <img
+                  src={characterImg}
+                  alt="Spider-Man Hanging"
+                  style={{
+                    height: 100,
+                    objectFit: 'contain',
+                    filter: 'drop-shadow(0 6px 12px rgba(0, 0, 0, 0.6))',
+                    marginBottom: 12,
+                    animation: 'float 3s ease-in-out infinite',
+                  }}
+                />
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#f8fafc', marginBottom: 4 }}>
+                  No Missions on Your Web!
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b' }}>
-                  Type in the box above and press Add to create your first task.
+                <div style={{ fontSize: 12, color: '#94a3b8', maxWidth: 360, lineHeight: '1.5' }}>
+                  Spider-Man is standing by. Type in the box above to add a mission, or say <strong style={{ color: '#38bdf8' }}>"Hey Spider"</strong> anytime to open this card!
                 </div>
               </div>
             ) : (
@@ -543,19 +747,24 @@ export const SettingsApp: React.FC = () => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    padding: '12px 14px',
+                    padding: '12px 16px',
                     borderRadius: 10,
-                    backgroundColor: task.done ? 'rgba(17, 24, 39, 0.6)' : '#111827',
-                    border: task.done ? '1px solid #1e293b' : '1px solid #334155',
+                    backgroundColor: task.done ? 'rgba(15, 23, 42, 0.4)' : 'rgba(22, 30, 46, 0.75)',
+                    border: task.done ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid rgba(255, 255, 255, 0.12)',
                     transition: 'all 0.15s ease',
                     cursor: 'pointer',
                     gap: 12,
+                    boxShadow: task.done ? 'none' : '0 2px 8px rgba(0, 0, 0, 0.25)',
                   }}
                   onMouseOver={(e) => {
-                    e.currentTarget.style.backgroundColor = task.done ? 'rgba(30, 41, 59, 0.6)' : '#1e293b';
+                    e.currentTarget.style.backgroundColor = task.done ? 'rgba(22, 30, 46, 0.6)' : 'rgba(30, 41, 64, 0.85)';
+                    e.currentTarget.style.borderColor = 'rgba(225, 29, 72, 0.4)';
+                    e.currentTarget.style.transform = 'translateY(-1px)';
                   }}
                   onMouseOut={(e) => {
-                    e.currentTarget.style.backgroundColor = task.done ? 'rgba(17, 24, 39, 0.6)' : '#111827';
+                    e.currentTarget.style.backgroundColor = task.done ? 'rgba(15, 23, 42, 0.4)' : 'rgba(22, 30, 46, 0.75)';
+                    e.currentTarget.style.borderColor = task.done ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 255, 255, 0.12)';
+                    e.currentTarget.style.transform = 'translateY(0)';
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
@@ -564,15 +773,16 @@ export const SettingsApp: React.FC = () => {
                         width: 20,
                         height: 20,
                         borderRadius: 6,
-                        border: task.done ? '1px solid #4ade80' : '1px solid #64748b',
-                        backgroundColor: task.done ? '#166534' : 'transparent',
+                        border: task.done ? '1px solid #e11d48' : '1px solid #475569',
+                        backgroundColor: task.done ? '#e11d48' : 'rgba(15, 23, 42, 0.6)',
+                        boxShadow: task.done ? '0 0 8px rgba(225, 29, 72, 0.5)' : 'none',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         flexShrink: 0,
                         color: '#ffffff',
                         fontSize: 12,
-                        fontWeight: 700,
+                        fontWeight: 800,
                         transition: 'all 0.15s ease',
                       }}
                     >
@@ -582,6 +792,7 @@ export const SettingsApp: React.FC = () => {
                     <span
                       style={{
                         fontSize: 14,
+                        fontWeight: task.done ? 400 : 500,
                         color: task.done ? '#64748b' : '#f8fafc',
                         textDecoration: task.done ? 'line-through' : 'none',
                         lineHeight: '1.4',
@@ -599,7 +810,7 @@ export const SettingsApp: React.FC = () => {
 
                   <button
                     type="button"
-                    title="Delete task"
+                    title="Delete mission"
                     onClick={(e) => handleDeleteTask(task.id, e)}
                     style={{
                       background: 'transparent',
@@ -640,10 +851,10 @@ export const SettingsApp: React.FC = () => {
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '20px 22px',
+            padding: '18px 22px',
             display: 'flex',
             flexDirection: 'column',
-            gap: 18,
+            gap: 16,
           }}
         >
           {/* 1. MASTER VOICE TOGGLE */}
@@ -652,21 +863,37 @@ export const SettingsApp: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '14px 18px',
-              backgroundColor: '#111827',
-              borderRadius: 10,
-              border: '1px solid #1e293b',
+              padding: '16px 20px',
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              borderRadius: 12,
+              border: '1px solid rgba(225, 29, 72, 0.25)',
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.3)',
             }}
           >
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>
-                Voice Activation
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 15, fontWeight: 800, color: '#f8fafc' }}>
+                  Voice Activation
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 800,
+                    color: '#38bdf8',
+                    backgroundColor: 'rgba(56, 189, 248, 0.12)',
+                    padding: '1px 6px',
+                    borderRadius: 4,
+                    border: '1px solid rgba(56, 189, 248, 0.3)',
+                  }}
+                >
+                  Offline AI
+                </span>
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                Listen for voice commands completely offline via Vosk
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 3 }}>
+                Listen for voice wake words and dismissal completely offline via Vosk
               </div>
             </div>
-            <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24, cursor: 'pointer' }}>
+            <label style={{ position: 'relative', display: 'inline-block', width: 48, height: 26, cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={settings?.voiceActivationEnabled ?? true}
@@ -681,17 +908,18 @@ export const SettingsApp: React.FC = () => {
                   left: 0,
                   right: 0,
                   bottom: 0,
-                  backgroundColor: settings?.voiceActivationEnabled ? '#0284c7' : '#334155',
-                  borderRadius: 24,
+                  backgroundColor: settings?.voiceActivationEnabled ? '#e11d48' : '#334155',
+                  boxShadow: settings?.voiceActivationEnabled ? '0 0 12px rgba(225, 29, 72, 0.5)' : 'none',
+                  borderRadius: 26,
                   transition: '0.2s ease',
                 }}
               >
                 <span
                   style={{
                     position: 'absolute',
-                    height: 18,
-                    width: 18,
-                    left: settings?.voiceActivationEnabled ? 23 : 3,
+                    height: 20,
+                    width: 20,
+                    left: settings?.voiceActivationEnabled ? 25 : 3,
                     bottom: 3,
                     backgroundColor: '#ffffff',
                     borderRadius: '50%',
@@ -705,21 +933,22 @@ export const SettingsApp: React.FC = () => {
           {/* 2. CHOOSE MICROPHONE CARD */}
           <div
             style={{
-              padding: '16px 18px',
-              backgroundColor: '#111827',
-              borderRadius: 10,
-              border: '1px solid #1e293b',
+              padding: '16px 20px',
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              borderRadius: 12,
+              border: '1px solid rgba(255, 255, 255, 0.08)',
               display: 'flex',
               flexDirection: 'column',
               gap: 12,
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>
-                  Microphone Input
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#f8fafc' }}>
+                  Microphone Input Hardware
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
                   Select which audio hardware captures your voice
                 </div>
               </div>
@@ -733,16 +962,24 @@ export const SettingsApp: React.FC = () => {
                 }}
                 title="Refresh audio devices"
                 style={{
-                  background: '#1e293b',
+                  background: 'rgba(30, 41, 59, 0.7)',
                   border: '1px solid #334155',
-                  color: '#94a3b8',
+                  color: '#38bdf8',
                   borderRadius: 6,
-                  padding: '4px 10px',
+                  padding: '5px 12px',
                   fontSize: 12,
+                  fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
+                  gap: 5,
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.borderColor = '#38bdf8';
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = '#334155';
                 }}
               >
                 🔄 Refresh
@@ -758,10 +995,10 @@ export const SettingsApp: React.FC = () => {
               style={{
                 width: '100%',
                 backgroundColor: '#090d16',
-                border: '1px solid #334155',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
                 color: '#f8fafc',
                 borderRadius: 8,
-                padding: '10px 12px',
+                padding: '10px 14px',
                 fontSize: 13,
                 outline: 'none',
                 cursor: 'pointer',
@@ -779,11 +1016,11 @@ export const SettingsApp: React.FC = () => {
           {/* 3. TEST MICROPHONE LIVE VU METER CARD */}
           <div
             style={{
-              padding: '16px 18px',
-              backgroundColor: '#111827',
-              borderRadius: 10,
-              border: isTestingMic ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid #1e293b',
-              boxShadow: isTestingMic ? '0 0 15px rgba(2, 132, 199, 0.15)' : 'none',
+              padding: '16px 20px',
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              borderRadius: 12,
+              border: isTestingMic ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.08)',
+              boxShadow: isTestingMic ? '0 0 20px rgba(56, 189, 248, 0.25)' : '0 4px 16px rgba(0, 0, 0, 0.25)',
               transition: 'all 0.2s ease',
               display: 'flex',
               flexDirection: 'column',
@@ -792,30 +1029,30 @@ export const SettingsApp: React.FC = () => {
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>
-                  Test Microphone
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#f8fafc' }}>
+                  Test Microphone Input
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                  Check real-time input audio levels to verify your mic is working
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                  Check real-time input audio levels to verify your mic is picking up your voice
                 </div>
               </div>
               <button
                 type="button"
                 onClick={toggleMicTest}
                 style={{
-                  backgroundColor: isTestingMic ? '#ef4444' : '#0284c7',
-                  backgroundImage: isTestingMic ? 'none' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                  backgroundColor: isTestingMic ? '#ef4444' : '#e11d48',
+                  backgroundImage: isTestingMic ? 'none' : 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)',
                   color: '#ffffff',
                   border: 'none',
                   borderRadius: 8,
-                  padding: '7px 16px',
+                  padding: '8px 18px',
                   fontSize: 12,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 6,
-                  boxShadow: isTestingMic ? '0 0 10px rgba(239, 68, 68, 0.4)' : '0 2px 8px rgba(2, 132, 199, 0.3)',
+                  boxShadow: isTestingMic ? '0 0 12px rgba(239, 68, 68, 0.5)' : '0 4px 12px rgba(225, 29, 72, 0.4)',
                   transition: 'all 0.15s ease',
                 }}
               >
@@ -832,7 +1069,7 @@ export const SettingsApp: React.FC = () => {
                   backgroundColor: '#090d16',
                   borderRadius: 7,
                   overflow: 'hidden',
-                  border: '1px solid #1e293b',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
                   position: 'relative',
                 }}
               >
@@ -841,12 +1078,13 @@ export const SettingsApp: React.FC = () => {
                     height: '100%',
                     width: `${micLevel}%`,
                     background: micLevel > 75
-                      ? 'linear-gradient(90deg, #10b981 0%, #f59e0b 60%, #ef4444 100%)'
+                      ? 'linear-gradient(90deg, #10b981 0%, #38bdf8 50%, #e11d48 100%)'
                       : micLevel > 35
                       ? 'linear-gradient(90deg, #10b981 0%, #38bdf8 100%)'
                       : '#10b981',
                     borderRadius: 7,
                     transition: 'width 0.08s ease-out',
+                    boxShadow: micLevel > 20 ? '0 0 8px rgba(56, 189, 248, 0.5)' : 'none',
                   }}
                 />
               </div>
@@ -856,7 +1094,7 @@ export const SettingsApp: React.FC = () => {
                 <span style={{ fontSize: 11, color: isTestingMic ? (micLevel > 15 ? '#4ade80' : '#38bdf8') : '#64748b' }}>
                   {isTestingMic
                     ? micLevel > 15
-                      ? '🔊 Voice detected!'
+                      ? '🔊 Sound detected! Speaking clearly.'
                       : '🎤 Listening... speak into your microphone'
                     : 'Click "Test Mic" to check your sound level'}
                 </span>
@@ -867,23 +1105,24 @@ export const SettingsApp: React.FC = () => {
             </div>
           </div>
 
-          {/* 4. VOICE COMMANDS & SPIDER TRIGGER CARD */}
+          {/* 4. VOICE COMMANDS CHEATSHEET & SPIDER TRIGGER */}
           <div
             style={{
-              padding: '16px 18px',
-              backgroundColor: '#111827',
-              borderRadius: 10,
-              border: '1px solid #1e293b',
+              padding: '16px 20px',
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              borderRadius: 12,
+              border: '1px solid rgba(225, 29, 72, 0.25)',
               display: 'flex',
               flexDirection: 'column',
               gap: 14,
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
             }}
           >
             <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#f8fafc' }}>
                 Voice Trigger Keywords
               </div>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
                 Configured offline trigger phrases for Spider-Man
               </div>
             </div>
@@ -895,17 +1134,31 @@ export const SettingsApp: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  backgroundColor: '#0b1120',
-                  borderRadius: 8,
-                  border: '1px solid #1e293b',
+                  padding: '12px 16px',
+                  backgroundColor: 'rgba(11, 17, 32, 0.8)',
+                  borderRadius: 10,
+                  border: '1px solid rgba(56, 189, 248, 0.3)',
                 }}
               >
                 <div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>"Hey Spider"</span>
-                  <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 8 }}>Summons Spider-Man to show your tasks</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#38bdf8' }}>"Hey Spider"</span>
+                  <span style={{ fontSize: 12, color: '#cbd5e1', marginLeft: 10 }}>
+                    Summons Spider-Man downwards to display your active tasks
+                  </span>
                 </div>
-                <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>Always On</span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: '#4ade80',
+                    fontWeight: 800,
+                    backgroundColor: 'rgba(74, 222, 128, 0.12)',
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(74, 222, 128, 0.3)',
+                  }}
+                >
+                  Always On
+                </span>
               </div>
 
               {/* Single Word "Spider" Checkbox */}
@@ -915,23 +1168,32 @@ export const SettingsApp: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  backgroundColor: '#0b1120',
-                  borderRadius: 8,
-                  border: settings?.voiceAlsoSpider ? '1px solid rgba(56, 189, 248, 0.4)' : '1px solid #1e293b',
+                  padding: '12px 16px',
+                  backgroundColor: 'rgba(11, 17, 32, 0.8)',
+                  borderRadius: 10,
+                  border: settings?.voiceAlsoSpider ? '1px solid rgba(225, 29, 72, 0.5)' : '1px solid rgba(255, 255, 255, 0.08)',
                   cursor: 'pointer',
                   transition: 'all 0.15s ease',
                 }}
               >
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#f8fafc' }}>"Spider"</span>
-                    <span style={{ fontSize: 11, color: '#38bdf8', backgroundColor: 'rgba(2, 132, 199, 0.2)', padding: '2px 6px', borderRadius: 4 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#f8fafc' }}>"Spider"</span>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        color: '#e11d48',
+                        backgroundColor: 'rgba(225, 29, 72, 0.12)',
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        fontWeight: 700,
+                      }}
+                    >
                       Single Word (Optional)
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                    Also summon on single word "Spider" (Disabled by default to avoid ambient noise false triggers)
+                  <div style={{ fontSize: 11, color: '#94a3b8', marginTop: 3 }}>
+                    Also summon on single word "Spider" (Disabled by default to avoid ambient room noise false triggers)
                   </div>
                 </div>
                 <div
@@ -939,14 +1201,15 @@ export const SettingsApp: React.FC = () => {
                     width: 20,
                     height: 20,
                     borderRadius: 6,
-                    border: settings?.voiceAlsoSpider ? '1px solid #4ade80' : '1px solid #64748b',
-                    backgroundColor: settings?.voiceAlsoSpider ? '#166534' : 'transparent',
+                    border: settings?.voiceAlsoSpider ? '1px solid #e11d48' : '1px solid #64748b',
+                    backgroundColor: settings?.voiceAlsoSpider ? '#e11d48' : 'transparent',
+                    boxShadow: settings?.voiceAlsoSpider ? '0 0 8px rgba(225, 29, 72, 0.5)' : 'none',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     color: '#ffffff',
                     fontSize: 12,
-                    fontWeight: 700,
+                    fontWeight: 800,
                   }}
                 >
                   {settings?.voiceAlsoSpider && '✓'}
@@ -959,17 +1222,33 @@ export const SettingsApp: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '10px 14px',
-                  backgroundColor: '#0b1120',
-                  borderRadius: 8,
-                  border: '1px solid #1e293b',
+                  padding: '12px 16px',
+                  backgroundColor: 'rgba(11, 17, 32, 0.8)',
+                  borderRadius: 10,
+                  border: '1px solid rgba(245, 158, 11, 0.3)',
                 }}
               >
                 <div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#f59e0b' }}>"Ok Spider" / "Okay Spider"</span>
-                  <span style={{ fontSize: 12, color: '#94a3b8', marginLeft: 8 }}>Dismisses Spider-Man (climbs back up)</span>
+                  <span style={{ fontSize: 13, fontWeight: 800, color: '#f59e0b' }}>
+                    "Ok Spider" / "Okay Spider"
+                  </span>
+                  <span style={{ fontSize: 12, color: '#cbd5e1', marginLeft: 10 }}>
+                    Dismisses Spider-Man back up to the web ceiling
+                  </span>
                 </div>
-                <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 600 }}>Active</span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: '#4ade80',
+                    fontWeight: 800,
+                    backgroundColor: 'rgba(74, 222, 128, 0.12)',
+                    padding: '2px 8px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(74, 222, 128, 0.3)',
+                  }}
+                >
+                  Active
+                </span>
               </div>
             </div>
 
@@ -977,20 +1256,20 @@ export const SettingsApp: React.FC = () => {
             {lastDetection && (
               <div
                 style={{
-                  padding: '10px 14px',
-                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                  border: '1px solid rgba(16, 185, 129, 0.4)',
+                  padding: '12px 16px',
+                  backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                  border: '1px solid rgba(74, 222, 128, 0.4)',
                   borderRadius: 8,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  animation: 'fadeIn 0.2s ease',
+                  boxShadow: '0 0 12px rgba(74, 222, 128, 0.2)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 16 }}>🎉</span>
-                  <span style={{ fontSize: 13, color: '#4ade80', fontWeight: 700 }}>
-                    Heard: "{lastDetection.phrase}"
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 16 }}>🎯</span>
+                  <span style={{ fontSize: 13, color: '#4ade80', fontWeight: 800 }}>
+                    Heard Command: "{lastDetection.phrase}"
                   </span>
                 </div>
                 <span style={{ fontSize: 11, color: '#94a3b8' }}>
@@ -1003,25 +1282,26 @@ export const SettingsApp: React.FC = () => {
           {/* 5. SENSITIVITY THRESHOLD */}
           <div
             style={{
-              padding: '16px 18px',
-              backgroundColor: '#111827',
-              borderRadius: 10,
-              border: '1px solid #1e293b',
+              padding: '16px 20px',
+              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+              borderRadius: 12,
+              border: '1px solid rgba(255, 255, 255, 0.08)',
               display: 'flex',
               flexDirection: 'column',
-              gap: 10,
+              gap: 12,
+              boxShadow: '0 4px 16px rgba(0, 0, 0, 0.25)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#f8fafc' }}>
-                  Sensitivity Threshold
+                <div style={{ fontSize: 14, fontWeight: 800, color: '#f8fafc' }}>
+                  Voice Sensitivity Threshold
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                  Controls how strictly the wake-word is verified
+                <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                  Controls how strictly the wake-words and dismissal are verified
                 </div>
               </div>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#e11d48' }}>
                 {Math.round((settings?.voiceSensitivity ?? 0.70) * 100)}%
               </span>
             </div>
@@ -1036,7 +1316,7 @@ export const SettingsApp: React.FC = () => {
               style={{
                 width: '100%',
                 cursor: 'pointer',
-                accentColor: '#0284c7',
+                accentColor: '#e11d48',
               }}
             />
 
