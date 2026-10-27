@@ -1,7 +1,52 @@
+# Node dependencies & caches
 node_modules/
+.npm
+.eslintcache
+
+# Build, packaging and compilation outputs
 dist/
 release/
+out/
+build/
+
+# Python virtual environments & caches
+.venv/
+tools/**/.venv/
+**/__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+
+# Runtime logs, diagnostics & environment files
+logs/
+*.log
+.env
+.env.*
+userData/agent/debug-audio/
+
+# Temporary, scratch & benchmark artifacts
+tmp_*/
+scratch_*
+*.tmp
+
+# Heavy offline speech models (download via scripts/download-models.ps1)
+models/
+
+# Heavy 3D models and proprietary character assets
+assets/character.glb
+assets/character.png
+assets/character.webm
+
+# Local user runtime configuration
+settings.json
+
+# Operating System and IDE files
 .DS_Store
 Thumbs.db
-tools/voice/.venv/
-models/
+desktop.ini
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj

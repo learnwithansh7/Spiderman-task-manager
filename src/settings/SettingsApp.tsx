@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { TaskItem } from '../overlay/types';
 import { AppSettings } from '../types/settings';
 import iconImg from '../../assets/icon.png';
-import characterImg from '../../assets/character.png';
+import characterImg from '../../assets/placeholder-character.png';
 
 interface AudioDeviceItem {
   id: number;

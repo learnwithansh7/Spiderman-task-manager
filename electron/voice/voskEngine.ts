@@ -48,11 +48,6 @@ export function getVoiceBaseDir(): string {
   if (fs.existsSync(path.join(projRoot, 'tools', 'voice', 'voice_helper.py'))) {
     return projRoot;
   }
-  // 3. Fallback to known dev directory if running installed app on development machine
-  const devDir = path.resolve('D:\\Projects\\SpiderReminder');
-  if (fs.existsSync(path.join(devDir, 'tools', 'voice', 'voice_helper.py'))) {
-    return devDir;
-  }
   return projRoot;
 }
 
@@ -61,9 +56,9 @@ export function getPythonExecutable(baseDir: string): string {
   if (fs.existsSync(venvPython)) {
     return venvPython;
   }
-  const devPython = path.resolve('D:\\Projects\\SpiderReminder', 'tools', 'voice', '.venv', 'Scripts', 'python.exe');
-  if (fs.existsSync(devPython)) {
-    return devPython;
+  const rootVenv = path.join(getProjectRoot(), 'tools', 'voice', '.venv', 'Scripts', 'python.exe');
+  if (fs.existsSync(rootVenv)) {
+    return rootVenv;
   }
   return venvPython;
 }
@@ -73,9 +68,9 @@ export function getModelsDirectory(baseDir: string): string {
   if (fs.existsSync(modelsDir)) {
     return modelsDir;
   }
-  const devModels = path.resolve('D:\\Projects\\SpiderReminder', 'models', 'vosk');
-  if (fs.existsSync(devModels)) {
-    return devModels;
+  const rootModels = path.join(getProjectRoot(), 'models', 'vosk');
+  if (fs.existsSync(rootModels)) {
+    return rootModels;
   }
   return modelsDir;
 }

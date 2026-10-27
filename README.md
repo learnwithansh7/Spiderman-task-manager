@@ -1,103 +1,112 @@
-# SpiderReminder
+# SpiderReminder 🕷️
 
-A Windows desktop reminder app where a 3D animated hero hanging upside down glides down from the top edge on a web thread to remind you to drink water.
-
----
-
-## Milestone Progress
-
-| Milestone | Status | Details |
-|---|---|---|
-| **V1: Voice Activation (Vosk)** | **DONE** | 100% offline, zero-cloud wake-word activation ("Hey Spider") via Vosk speech recognition and sounddevice. Isolated Python venv, generic `WakeWordEngine` interface, self-trigger prevention, cooldowns, tray controls, and multi-model support (`vosk-model-small-en-in-0.4` and `vosk-model-small-en-us-0.15`). |
-| **R0: Diagnostics & Environment** | **DONE** | Validated normal window, transparent window, tray icon, and identified `Ctrl+Alt+R` collision; added `Ctrl+Alt+Shift+R` fallback. Tag: `r0-diagnostics`. |
-| **R1: Overlay Window Foundation** | **DONE** | Transparent, frameless, always-on-top, click-through overlay covering the primary display. Window remains hidden when idle; shown via `showInactive()` so focus is never stolen. Tag: `r1-overlay-foundation`. |
-| **R2: Animation with Placeholder** | **DONE** | Full physics animation loop: thread growth, 4s ease-out descent, scale (0.8 to 1.0) and soft depth shadow, damped pendulum sway $A e^{-kt} \cos(\omega t)$ starting at 10°, and 1.5s ease-in climb exit. Tag: `r2-animation`. |
-| **R3: Note Card and Voice** | **DONE** | Spring-animated note card with **REMINDER** badge, customizable message (*"Time to drink water!"*), **Done** and **Snooze (5 min)** buttons, mute toggle, and spoken voice via Windows Speech Synthesis. Tag: `r3-note-and-voice`. |
-| **R4: Scheduler and Settings** | **DONE** | Heartbeat scheduler engine, active hours gating (09:00–18:00), snooze handling, sleep/wake survival via `powerMonitor`, rotating reminder types (`water`, `stretch`, `eyes`), and JSON persistence in `settings.json`. Tag: `r4-scheduler`. |
-| **R5: Tray & Settings Window** | **DONE** | Full tray context menu (status, multi-type preview, settings, login item checkbox, quit), dedicated React dark settings window, close-to-tray interception, and "Start with Windows" integration (`app.setLoginItemSettings`). Tag: `r5-tray-and-settings`. |
-| **R6: The Real 3D Character** | **DONE** | Seamless fallback hierarchy (WebM with alpha -> PNG image -> neutral SVG placeholder), VP9 alpha video rendering with phase synchronization (play/pause), and asset generator script. Tag: `r6-character`. |
-| **R7: Polish & Reliability** | **DONE** | Fullscreen game/presentation detection (`isForegroundAppFullscreen`), multi-monitor bounds tracking (`screen.on('display-metrics-changed')`), single-instance locking (`requestSingleInstanceLock`), and renderer crash recovery (`render-process-gone`). Tag: `r7-polish`. |
-| **R8: Installer & Release** | **DONE** | `electron-builder` Windows packaging: NSIS standard installer, standalone portable executable, unpacked directory, custom 256x256 `.ico` icon, and verified SHA256 hashes. Tag: `r8-release`. |
+**SpiderReminder** is an interactive, privacy-first Windows desktop task reminder and voice assistant. An animated character descends from the top of your screen on a web strand to display your active mission tasks, remind you to stay healthy, and respond to offline voice commands without any cloud or API dependencies.
 
 ---
 
-## Milestone V1: Voice Activation (Vosk Setup Guide)
+## ✨ Features
 
-SpiderReminder features private, zero-cloud offline voice activation triggered by saying **"Hey Spider"**.
-
-### Privacy & Architecture Guarantees
-- **100% Offline**: Zero external network requests, zero cloud speech accounts, and zero AccessKeys.
-- **Privacy First**: No raw audio is ever recorded, stored to disk, or transmitted off this PC.
-- **Isolated Helper**: Runs in an isolated virtual environment at `tools/voice/.venv` using `vosk==0.3.45` and `sounddevice==0.5.1`.
-- **Automatic Lifecycle Control**: The voice helper process exits cleanly when SpiderReminder shuts down, preventing background orphan processes.
-- **Self-Trigger Prevention**: Voice listening automatically pauses while Spider-Man is speaking or playing audio, and enters a 3-second post-sequence cooldown before resuming.
-
-### Setup Instructions
-
-#### 1. Check Python Version
-Ensure Python 3.9–3.12 is installed on Windows:
-```bash
-python --version
-```
-
-#### 2. Create Virtual Environment
-```bash
-python -m venv tools/voice/.venv
-```
-
-#### 3. Install Dependencies
-```bash
-.\tools\voice\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\tools\voice\.venv\Scripts\python.exe -m pip install vosk==0.3.45 sounddevice==0.5.1
-```
-
-#### 4. Download and Unpack Vosk Models into `models/vosk/`
-SpiderReminder supports multiple models. Both models are distributed under the **Apache 2.0** license:
-
-- **English (India) Model (Recommended)**:
-  - Download URL: `https://alphacephei.com/kaldi/models/vosk-model-small-en-in-0.4.zip`
-  - Unpack to: `models/vosk/vosk-model-small-en-in-0.4`
-- **English (US) Model**:
-  - Download URL: `https://alphacephei.com/vosk/models/vosk-model-small-en-us-0.15.zip`
-  - Unpack to: `models/vosk/vosk-model-small-en-us-0.15`
-
-You can switch between installed models anytime inside the **Settings** window under **Voice Activation**.
+- **🕸️ Fluid Desktop Overlay Animation**: Non-intrusive, click-through, frameless transparent overlay that smoothly lowers the character and task card from the top edge of your screen.
+- **📋 SpiderTasks Manager**: Built-in desktop mission card to add, complete, and delete tasks directly with real-time progress indicators.
+- **🎙️ 100% Offline Voice Activation**: Wake-word and dismissal detection powered by [Vosk](https://alphacephei.com/vosk/) and Python. All speech processing happens locally on your machine with zero cloud connectivity.
+- **🔇 Privacy & Security First**: No audio is ever recorded, stored to disk, or sent over any network.
+- **🚀 Windows Autostart**: Launches silently in the background on Windows boot (`--hidden`), listening for voice commands from the system tray.
+- **🎮 Fullscreen Awareness**: Automatically detects when you are playing games or watching fullscreen videos and suppresses visual popups.
+- **🎨 Custom Character Support**: Bring your own 2D sprite (`assets/character.png`) or 3D model (`assets/character.glb`), with automatic graceful fallbacks to the bundled original mascot.
 
 ---
 
-## Installer & Release (Milestone R8)
+## 🛠️ System Requirements
 
-SpiderReminder is fully packaged for production distribution on Windows 10/11 x64 using `electron-builder`.
+- **Operating System**: Windows 10 or Windows 11 (64-bit)
+- **Node.js**: v18.x or v20.x
+- **Python**: Python 3.10, 3.11, or 3.12 (64-bit, added to system `PATH`)
+- **Microphone**: Working audio input device
 
-### Release Outputs (`release/`)
-| File | Type | Size | Description |
-|---|---|---|---|
-| **`SpiderReminder Setup 1.0.0.exe`** | NSIS Installer | **82.8 MB** | Full Windows setup wizard with Start Menu shortcuts, desktop shortcut option, and clean uninstaller. |
-| **`SpiderReminder 1.0.0.exe`** | Portable Executable | **82.6 MB** | Zero-install standalone binary that runs immediately from any folder or USB drive. |
-| **`release/win-unpacked/SpiderReminder.exe`** | Directory Build | **189 MB** | Pre-extracted binary directory for developer testing without re-packing. |
+---
 
-### Build Commands
-```bash
-# Build production NSIS installer and portable executable
+## 🚀 Quick Start Guide
+
+### 1. Install Node Dependencies
+```powershell
+npm install
+```
+
+### 2. Set Up Python Voice Helper
+The speech recognition engine runs in an isolated Python virtual environment:
+```powershell
+cd tools/voice
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+cd ../..
+```
+
+### 3. Download Offline Speech Models
+SpiderReminder requires an offline Vosk speech model placed in `models/vosk/`.
+
+Run the interactive downloader (shows the official URL and asks for confirmation before downloading):
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/download-models.ps1
+```
+*Manual Alternative*: Download `vosk-model-small-en-us-0.15.zip` from [Alpha Cephei](https://alphacephei.com/vosk/models) and extract it into `models/vosk/vosk-model-small-en-us-0.15`.
+
+### 4. Run Development Build
+```powershell
+npm run dev
+```
+
+### 5. Package Windows Installer (.exe)
+```powershell
 npm run dist
-
-# Build unpacked directory only (fast verification)
-npm run dist:dir
 ```
+Builds the standalone installer and portable `.exe` into the `release/` directory.
 
 ---
 
-## Polish & Reliability (Milestone R7)
+## 🗣️ Voice Commands
 
-- **Fullscreen Game & Presentation Detection (`electron/system.ts`)**:
-  - Automatically queries the Windows foreground application dimensions before triggering a reminder.
-  - If a user is immersed in a fullscreen video player, presentation, or game, the reminder automatically postpones by 3 minutes to avoid losing focus or disrupting gameplay.
-- **Dynamic Multi-Monitor Support**:
-  - Actively listens to `display-added`, `display-removed`, and `display-metrics-changed` events.
-  - Dynamically recalculates work area boundaries and repositions the overlay to always fit the primary screen correctly across DPI/resolution changes.
-- **Single Instance Enforcement**:
-  - `app.requestSingleInstanceLock()` prevents accidental duplicate processes.
-  - Secondary launches immediately focus the existing Settings window and terminate.
-- **Process & Renderer Crash Recovery**:
-  - Intercepts `render-process-gone` and automatically rebuilds the transparent overlay window if the renderer terminates.
-  - Global `uncaughtException` and `unhandledRejection` guards prevent silent process termination.
+| Voice Trigger | Behavior |
+| :--- | :--- |
+| **"Hey Spider"** | Summons the character down to display your active task board. |
+| **"Spider"** *(optional)* | Single-word wake-word (can be toggled in Settings). |
+| **"ok spider"** / **"okay spider"** | Dismisses the character back up to the top of the screen. |
+
+---
+
+## 🔧 Troubleshooting
+
+### 1. "Voice Activation" says Stopped or Test Mic is 0%
+- **Windows Microphone Privacy**: Ensure microphone access is permitted under:
+  `Windows Settings > Privacy & security > Microphone > Let desktop apps access your microphone -> ON`.
+- **Selected Hardware**: In the Settings window under **Microphone & Voice**, ensure the correct hardware device is selected from the dropdown rather than an inactive virtual adapter.
+- **Model Files Missing**: Verify that the speech model exists at `models/vosk/vosk-model-small-en-us-0.15/`.
+
+### 2. Stale Helper Processes
+- If another Python process previously locked the microphone device, close SpiderReminder and terminate any hanging helpers:
+  ```powershell
+  Stop-Process -Name "python" -Force -ErrorAction SilentlyContinue
+  ```
+  SpiderReminder automatically cleans up child helper processes on exit.
+
+---
+
+## 🔒 Safety, Privacy & Design Limits
+
+- **No Remote Calls**: The core application makes zero telemetry or external API calls during operation.
+- **Graceful Asset Fallback**: If custom character graphics or 3D models are missing, SpiderReminder displays the bundled original placeholder mascot.
+- **Resource Gating**: Speech recognition automatically pauses while reminders speak to avoid feedback loops, with a built-in cooldown.
+
+---
+
+## 🎨 Bringing Your Own Character Artwork
+
+To replace the default mascot with your own custom character:
+1. Place your transparent PNG at `assets/character.png` (512×512 px recommended).
+2. See [`assets/README.md`](docs/../assets/README.md) for full formatting details.
+
+---
+
+## 📄 License
+
+License: to be decided

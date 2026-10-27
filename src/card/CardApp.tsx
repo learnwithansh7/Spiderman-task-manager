@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { TaskItem } from '../overlay/types';
 import iconImg from '../../assets/icon.png';
-import characterImg from '../../assets/character.png';
+import characterImg from '../../assets/placeholder-character.png';
 
 export const CardApp: React.FC = () => {
   const [tasks, setTasks] = useState<TaskItem[]>([]);

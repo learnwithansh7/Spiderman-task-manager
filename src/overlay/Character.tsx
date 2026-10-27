@@ -49,13 +49,13 @@ export const Character: React.FC<CharacterProps> = ({
     >
       <img
         src="../character.png"
-        alt="Spider-Man"
+        alt="Spider Character"
         onError={(e) => {
-          // Fallback to absolute path if relative path differs
+          // Fallback to bundled original placeholder if custom character.png is not provided
           const img = e.target as HTMLImageElement;
-          if (!img.dataset.retried) {
-            img.dataset.retried = 'true';
-            img.src = './character.png';
+          if (!img.dataset.fallback) {
+            img.dataset.fallback = 'true';
+            img.src = '../placeholder-character.png';
           }
         }}
         style={{

@@ -1,5 +1,5 @@
 {
-  "intervalMinutes": 30,
+  "intervalMinutes": 45,
   "activeHours": {
     "enabled": true,
     "start": "09:00",
@@ -26,6 +26,11 @@
     }
   },
   "lastTriggerTimestamp": 0,
-  "nextTriggerTimestamp": 1792062365957,
-  "lastReminderType": "water"
+  "nextTriggerTimestamp": 0,
+  "lastReminderType": "water",
+  "voiceActivationEnabled": true,
+  "voiceDeviceId": null,
+  "voiceSensitivity": 0.75,
+  "voiceAlsoSpider": false,
+  "voiceModelName": "vosk-model-small-en-us-0.15"
 }
