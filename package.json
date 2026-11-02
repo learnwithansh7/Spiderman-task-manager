@@ -1,7 +1,7 @@
 {
-  "name": "spider-reminder",
+  "name": "spiderman-task-manager",
   "version": "2.0.0",
-  "description": "SpiderReminder - Windows desktop reminder app",
+  "description": "Spider-Man Task Manager - Interactive Windows desktop task manager and offline voice companion",
   "main": "dist/electron/main.js",
   "author": "SpiderReminder Team",
   "scripts": {
